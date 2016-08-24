@@ -38,18 +38,3 @@ let main sam_path fq_path out_path () =
           filter_fastq idset ic oc
         )
     )
-
-let command =
-  let spec =
-    let open Command.Spec in
-    empty
-    +> flag "--sam" (required file) ~doc:"PATH Path of a SAM file"
-    +> flag "--fq" (required file) ~doc:"PATH Path of a FASTQ file"
-    +> flag "--output" (required file) ~doc:"PATH Path where to write FASTQ file"
-  in
-  Command.basic
-    ~summary:"Filter FASTQ items with id corresponding to aligned items in a SAM file"
-    spec
-    main
-
-let () = Command.run command

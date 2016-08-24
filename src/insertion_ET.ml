@@ -26,11 +26,11 @@ let ltr_index = Bowtie2.bowtie2_build ltr_fa
 
 let filter_fastq_with_sam (sam : sam workflow) (fq : 'a fastq workflow) : 'a fastq workflow =
   workflow ~descr:"filter_fastq_with_sam" [
-    script "ocamlscript" (string Filter_fastq_with_sam.contents) ~args:[
-      opt "--sam" dep sam ;
-      opt "--fq" dep fq ;
-      opt "--output" ident dest ;
-    ]
+    Bistro.OCamlscript.(
+      make
+        Filter_fastq_with_sam.contents
+        (app "main" [dep sam ; dep fq ; dest ()])
+    )
   ]
 
 let cat xs =
@@ -63,7 +63,9 @@ let te_positions fq1 fq2 =
   Macs2.callpeak ~nomodel:true ~extsize:150 ~qvalue:0.5 Macs2.sam [ sam1 ; sam2 ]
 
 
-(* SIMULATIONS *)
+(* === SIMULATIONS === *)
+
+(* Sequencing simulation using Art *)
 let sequencer cov fa =
   let ao =
     Art.(
