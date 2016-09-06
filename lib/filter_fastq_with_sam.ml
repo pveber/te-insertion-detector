@@ -1,7 +1,3 @@
-#!ocamlscript
-Ocaml.packs := ["biocaml.ez"] ;
-Ocaml.ocamlflags := ["-thread"]
---
 open Core.Std
 open Biocaml_ez.Std
 open CFStream
@@ -38,3 +34,16 @@ let main sam_path fq_path out_path () =
           filter_fastq idset ic oc
         )
     )
+
+let command =
+  let spec =
+    let open Command.Spec in
+    empty
+    +> flag "--sam" (required file)      ~doc:"PATH Aligned reads (SAM)"
+    +> flag "--fastq" (required file)    ~doc:"PATH Unaligned reads (FASTQ)"
+    +> flag "--output" (required string) ~doc:"PATH Path where to write FASTQ output"
+  in
+  Command.basic
+    ~summary:"Filter a FASTQ keeping only those having one fragment aligned in SAM"
+    spec
+    main

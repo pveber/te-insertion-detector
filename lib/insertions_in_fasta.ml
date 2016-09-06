@@ -1,7 +1,3 @@
-#!ocamlscript
-Ocaml.packs := ["biocaml.ez"] ;
-Ocaml.ocamlflags := ["-thread"]
---
 open Core.Std
 open Biocaml_ez.Std
 open CFStream
@@ -88,5 +84,3 @@ let command =
     ~summary:"Add insertions of a TE in a genome"
     spec
     main
-
-let () = Command.run command

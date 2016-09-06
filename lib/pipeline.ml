@@ -26,11 +26,12 @@ let ltr_index = Bowtie2.bowtie2_build ltr_fa
 
 let filter_fastq_with_sam (sam : sam workflow) (fq : 'a fastq workflow) : 'a fastq workflow =
   workflow ~descr:"filter_fastq_with_sam" [
-    Bistro.OCamlscript.(
-      make
-        Filter_fastq_with_sam.contents
-        (app "main" [dep sam ; dep fq ; dest ()])
-    )
+    cmd "te-insertion-detector" [
+      string "filter-fastq-with-sam" ;
+      dep sam ;
+      dep fq ;
+      dest
+    ]
   ]
 
 let cat xs =
@@ -85,7 +86,8 @@ let sequencer cov fa =
 
 let insertions_in_fasta ~te ~genome : [`genome_with_insertions] directory workflow =
   workflow ~descr:"insertions_in_fasta" [
-    script "ocamlscript" (string Insertions_in_fasta.contents) ~args:[
+    cmd "te-insertion-detector" [
+      string "insertions-in-fasta" ;
       opt "--te" dep te ;
       opt "--genome" dep genome ;
       opt "--output" ident dest ;
@@ -170,9 +172,7 @@ let command =
     empty
     +> flag "--simulations" no_arg ~doc:" Perform validation study by simulations"
   in
-  Command.basic ~summary:"insertion_ET pipeline" spec main
-
-let () = Command.run command
+  Command.basic ~summary:"Main program" spec main
 
 
 
