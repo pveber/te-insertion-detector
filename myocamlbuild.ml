@@ -42,12 +42,6 @@ let te_insertion_detector_app =
 let items = [ te_insertion_detector_app ; te_insertion_detector_lib ]
 
 
-let ocamlify =
-  let open Ocamlbuild_plugin in
-  A"ocamlify"
-
-
-
 let () =
   let open Solvuu_build.Std.Project in
 
@@ -70,28 +64,6 @@ let () =
           "VERSION", Some version;
         ];
 
-      Ocamlbuild_plugin.(
-        rule "ocamlify: %.mlify -> %.mlify.depends"
-          ~prod:"%.mlify.depends"
-          ~dep:"%.mlify"
-          begin
-            fun env _ ->
-              Cmd(S[ocamlify;
-                    T(tags_of_pathname (env "%.mlify")++"ocamlify"++"depends");
-                    A"--depends";
-                    A"--var-string";  A"contents"; P(env "%.mlify");
-                    A"--output"; P(env "%.mlify.depends")])
-          end
-      ) ;
-      Ocamlbuild_plugin.(
-        rule "ocamlify: %.mlify & %.mlify.depends -> %.ml"
-          ~prod:"%.ml"
-          ~deps:["%.mlify"; "%.mlify.depends"]
-          begin
-            fun env build ->
-              Cmd(S[ocamlify; A"--var-string"; A"contents"; P(env "%.mlify") ; A"--output"; P(env "%.ml"); ])
-          end
-      ) ;
       List.iter libs ~f:build_lib;
       List.iter apps ~f:build_app;
 
