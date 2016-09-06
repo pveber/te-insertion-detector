@@ -28,9 +28,9 @@ let filter_fastq_with_sam (sam : sam workflow) (fq : 'a fastq workflow) : 'a fas
   workflow ~descr:"filter_fastq_with_sam" [
     cmd "te-insertion-detector" [
       string "filter-fastq-with-sam" ;
-      dep sam ;
-      dep fq ;
-      dest
+      opt "--sam" dep sam ;
+      opt "--fastq" dep fq ;
+      opt "--output" ident dest ;
     ]
   ]
 
