@@ -122,8 +122,8 @@ let samples = [ G0 ; G1 ]
 
 module Pipeline = struct
   let sample_path_prefix = function
-    | G0 -> "fablet/Severine/DNA-seq_donneesIGH/G0_parent/150102_I595_FCC5W8BACXX_L1_wHAIPI014963-113"
-    | G1 -> "fablet/Severine/DNA-seq_donneesIGH/G1_shpiwi/150102_I595_FCC5W8BACXX_L1_wHAIPI014964-112"
+    | G0 -> "data/Severine/DNA-seq_donneesIGH/G0_parent/150102_I595_FCC5W8BACXX_L1_wHAIPI014963-113"
+    | G1 -> "data/Severine/DNA-seq_donneesIGH/G1_shpiwi/150102_I595_FCC5W8BACXX_L1_wHAIPI014964-112"
 
   let sample_path side x =
     sprintf "%s_%d.fq.gz"
