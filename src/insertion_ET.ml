@@ -112,33 +112,63 @@ let simulation root =
     ["simulation" ; "positions_100X"] %> f 100. ;
   ]
 
-let detection_pipeline fq1_path fq2_path =
-  let open Bistro_app in
-  let fq1 = input fq1_path in
-  let fq2 = input fq2_path in
-  let sam1 = Bowtie2.bowtie2 ~mode:`local ltr_index (`single_end [fq1]) in
-  let filtered2 = filter_fastq_with_sam sam1 fq2 in
-  let te_positions = te_positions fq1 fq2 in
-  [
-    [ "ltr_aligned" ] %> sam1 ;
-    [ "filtered2" ] %> filtered2 ;
-    [ "te_positions" ] %> te_positions ;
+
+type sample = G0 | G1
+
+module Pipeline = struct
+  let sample_path_prefix = function
+    | G0 -> "fablet/Severine/DNA-seq_donneesIGH/G0_parent/150102_I595_FCC5W8BACXX_L1_wHAIPI014963-113"
+    | G1 -> "fablet/Severine/DNA-seq_donneesIGH/G1_shpiwi/150102_I595_FCC5W8BACXX_L1_wHAIPI014964-112"
+
+  let sample_path side x =
+    sprintf "%s_%d.fq.gz"
+      (sample_path_prefix x)
+      (match side with `Left -> 1 | `Right -> 2)
+
+  let fastq side x : [`sanger] fastq workflow =
+    input (sample_path side x)
+
+  let te_positions x =
+    let fq1 = fastq `Left x in
+    let fq2 = fastq `Right x in
+    let sam1 = Bowtie2.bowtie2 ~mode:`local ltr_index (`single_end [fq1]) in
+    let filtered2 = filter_fastq_with_sam sam1 fq2 in
+    let te_positions = te_positions fq1 fq2 in
+    object
+      method ltr_aligned = sam1
+      method filtered_reads = filtered2
+      method te_positions = te_positions
+    end
+end
+
+module Repo = struct
+  open Bistro_app
+
+  let detection_pipeline root x =
+    let tep = Pipeline.te_positions x in
+    [
+      (root @ [ "ltr_aligned" ])    %> tep#ltr_aligned ;
+      (root @ [ "filtered_reads" ]) %> tep#filtered_reads ;
+      (root @ [ "te_positions" ])   %> tep#te_positions ;
+    ]
+
+end
+
+let pipeline ~do_simulations ~root =
+  List.concat [
+    Repo.detection_pipeline (root @ [ "G0" ]) G0 ;
+    simulation ()
   ]
 
-let pipeline fq1_path fq2_path =
-  detection_pipeline fq1_path fq2_path
-  @ simulation ()
-
-let main fq1_path fq2_path () =
-  pipeline fq1_path fq2_path
+let main do_simulations () =
+  pipeline ~do_simulations ~root:[]
   |> Bistro_app.local ~np:4 ~mem:(4 * 1024) ~use_docker:true ~outdir:"res"
 
 let command =
   let spec =
     let open Command.Spec in
     empty
-    +> anon ("FQ1" %: file)
-    +> anon ("FQ2" %: file)
+    +> flag "--simulations" no_arg ~doc:" Perform validation study by simulations"
   in
   Command.basic ~summary:"insertion_ET pipeline" spec main
 
