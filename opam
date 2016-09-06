@@ -20,6 +20,7 @@ install: [
 remove: ["ocamlfind" "remove" "te-insertion-detector"]
 
 depends: [
+  "biocaml    {dev}
   "bistro"    {dev}
   "ocamlfind" {build}
   "solvuu-build" {build & dev}
