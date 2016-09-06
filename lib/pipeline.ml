@@ -116,6 +116,9 @@ let simulation root =
 
 
 type sample = G0 | G1
+[@@deriving show]
+
+let samples = [ G0 ; G1 ]
 
 module Pipeline = struct
   let sample_path_prefix = function
@@ -157,10 +160,10 @@ module Repo = struct
 end
 
 let pipeline ~do_simulations ~root =
-  List.concat [
-    Repo.detection_pipeline (root @ [ "G0" ]) G0 ;
-    simulation ()
-  ]
+  List.concat (
+    simulation () ::
+    List.map samples ~f:(fun x -> Repo.detection_pipeline (root @ [ show_sample x ]) x)
+  )
 
 let main do_simulations () =
   pipeline ~do_simulations ~root:[]

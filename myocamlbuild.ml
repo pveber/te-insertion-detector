@@ -24,6 +24,7 @@ let lib =
       "biocaml.ez" ;
       "bistro.utils";
       "bistro.bioinfo";
+      "ppx_deriving.show" ;
     ]
 
 let app =
