@@ -1,6 +1,0 @@
-B _build/src
-FLG -short-paths
-PKG biocaml.ez
-PKG bistro.bioinfo
-PKG bistro.utils
-PKG core
