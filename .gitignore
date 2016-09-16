@@ -4,3 +4,6 @@ _build
 data
 res
 *~
+_bistro
+.merlin
+.ocamlinit
