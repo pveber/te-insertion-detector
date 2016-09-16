@@ -159,21 +159,29 @@ module Repo = struct
 
 end
 
-let pipeline ~do_simulations ~root =
+let pipeline ~do_simulations ~preview_mode ~root =
+  let add_simulations accu =
+    if do_simulations then simulation () :: accu else accu
+  in
   List.concat (
-    simulation () ::
     List.map samples ~f:(fun x -> Repo.detection_pipeline (root @ [ show_sample x ]) x)
+    |> add_simulations
   )
 
-let main do_simulations () =
-  pipeline ~do_simulations ~root:[]
-  |> Bistro_app.local ~np:4 ~mem:(4 * 1024) ~use_docker:true ~outdir:"res"
+let main do_simulations preview_mode np mem () =
+  let np = Option.value ~default:4 np in
+  let mem = Option.value ~default:4 mem in
+  pipeline ~do_simulations ~preview_mode ~root:[]
+  |> Bistro_app.local ~np ~mem:(mem * 1024) ~use_docker:true ~outdir:"res"
 
 let command =
   let spec =
     let open Command.Spec in
     empty
     +> flag "--simulations" no_arg ~doc:" Perform validation study by simulations"
+    +> flag "--preview-mode" (optional int) ~doc:"INT If present, only consider K million reads"
+    +> flag "--np" (optional int) ~doc:"INT Number of available processors"
+    +> flag "--mem" (optional int) ~doc:"INT Available memory (in GB)"
   in
   Command.basic ~summary:"Main program" spec main
 
