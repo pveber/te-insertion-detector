@@ -24,13 +24,36 @@ let ltr_fa = workflow ~descr:"echo.LTR412" [
 
 let ltr_index = Bowtie2.bowtie2_build ltr_fa
 
-let filter_fastq_with_sam (sam : sam workflow) (fq : 'a fastq workflow) : 'a fastq workflow =
+let fastq_gz_head (fq_gz : _ fastq gz workflow as 'a) i : 'a =
+  workflow ~descr:"fastq_gz_head" [
+    pipe [
+      cmd "zcat" [ dep fq_gz ] ;
+      cmd "head" [ int (i * 4) ] ;
+      cmd "gzip" ~stdout:dest [ string "-c" ]
+    ]
+  ]
+
+let gzdep (gz : _ gz workflow) =
+  seq ~sep:"" [
+    string "<(gunzip -c " ;
+    dep gz ;
+    string ")"
+  ]
+
+let gzdest =
+  seq ~sep:"" [
+    string ">(gzip -c > " ;
+    dest ;
+    string ")" ;
+  ]
+
+let filter_fastq_with_sam (sam : sam workflow) (fq : 'a fastq gz workflow) : 'a fastq gz workflow =
   workflow ~descr:"filter_fastq_with_sam" [
     cmd "te-insertion-detector" [
       string "filter-fastq-with-sam" ;
       opt "--sam" dep sam ;
-      opt "--fastq" dep fq ;
-      opt "--output" ident dest ;
+      opt "--fastq" gzdep fq ;
+      opt "--output" ident gzdest ;
     ]
   ]
 
@@ -38,6 +61,14 @@ let cat xs =
   workflow ~descr:"cat" [
     cmd "cat" [
       list dep xs
+    ]
+  ]
+
+let gzip x =
+  workflow ~descr:"gzip" [
+    cmd "gzip" ~stdout:dest [
+      string "-c" ;
+      dep x
     ]
   ]
 
@@ -52,11 +83,34 @@ let mel_gff : gff workflow =
   Unix_tools.wget "ftp://ftp.flybase.net/genomes/Drosophila_melanogaster/dmel_r6.11_FB2016_03/gff/dmel-all-r6.11.gff.gz"
   |> Unix_tools.gunzip
 
+let bowtie2_env = docker_image ~account:"pveber" ~name:"bowtie2" ~tag:"2.2.9" ()
+
+let bowtie2 index fqs =
+  let args = match fqs with
+    | `single_end fqs ->
+      opt "-U" (list gzdep ~sep:",") fqs
+    | `paired_end (fqs1, fqs2) ->
+      seq [
+        opt "-1" (list gzdep ~sep:",") fqs1 ;
+        string " " ;
+        opt "-2" (list gzdep ~sep:",") fqs2
+      ]
+  in
+  workflow ~descr:"te-insertion-locator-bowtie2" ~mem:(3 * 1024) ~np:8 [
+    cmd "bowtie2" ~env:bowtie2_env [
+      string "--local" ;
+      opt "--threads" ident np ;
+      opt "-x" (fun index -> seq [dep index ; string "/index"]) index ;
+      args ;
+      opt "-S" ident dest ;
+    ]
+  ]
+
 
 let te_positions_one_way fq1 fq2 =
-  let sam1 = Bowtie2.bowtie2 ~mode:`local ltr_index (`single_end [fq1]) in
+  let sam1 = bowtie2 ltr_index (`single_end [fq1]) in
   let filtered2 = filter_fastq_with_sam sam1 fq2 in
-  Bowtie2.bowtie2 ~mode:`local genome_index (`single_end [filtered2])
+  bowtie2 genome_index (`single_end [filtered2])
 
 let te_positions fq1 fq2 =
   let sam1 = te_positions_one_way fq1 fq2 in
@@ -103,7 +157,7 @@ let simulation root =
   let simulated_genome = insertions_in_fasta ~te:ltr_fa ~genome:mel_genome in
   let f n =
     let fq1, fq2 = sequencer n (simulated_genome / genome_of_insertions_in_fasta) in
-    te_positions fq1 fq2
+    te_positions (gzip fq1) (gzip fq2)
   in
   [
     ["simulation" ; "genome"] %> simulated_genome ;
@@ -130,31 +184,26 @@ module Pipeline = struct
       (sample_path_prefix x)
       (match side with `Left -> 1 | `Right -> 2)
 
-  let fastq side x : [`sanger] fastq workflow =
-    input (sample_path side x)
+  let fastq_gz mode side x : [`sanger] fastq gz workflow =
+    let fq = input (sample_path side x) in
+    match mode with
+    | `preview i ->
+      fastq_gz_head fq (i * 1_000_000)
+    | `full -> fq
 
-  let te_positions x =
-    let fq1 = fastq `Left x in
-    let fq2 = fastq `Right x in
-    let sam1 = Bowtie2.bowtie2 ~mode:`local ltr_index (`single_end [fq1]) in
-    let filtered2 = filter_fastq_with_sam sam1 fq2 in
-    let te_positions = te_positions fq1 fq2 in
-    object
-      method ltr_aligned = sam1
-      method filtered_reads = filtered2
-      method te_positions = te_positions
-    end
+  let te_positions mode x =
+    let fq1 = fastq_gz mode `Left x in
+    let fq2 = fastq_gz mode `Right x in
+    te_positions fq1 fq2
 end
 
 module Repo = struct
   open Bistro_app
 
-  let detection_pipeline root x =
-    let tep = Pipeline.te_positions x in
+  let detection_pipeline mode root x =
+    let tep = Pipeline.te_positions mode x in
     [
-      (root @ [ "ltr_aligned" ])    %> tep#ltr_aligned ;
-      (root @ [ "filtered_reads" ]) %> tep#filtered_reads ;
-      (root @ [ "te_positions" ])   %> tep#te_positions ;
+      (root @ [ "te_positions" ]) %> tep ;
     ]
 
 end
@@ -163,16 +212,21 @@ let pipeline ~do_simulations ~preview_mode ~root =
   let add_simulations accu =
     if do_simulations then simulation () :: accu else accu
   in
+  let mode = match preview_mode with
+    | None -> `full
+    | Some i -> `preview i
+  in
   List.concat (
-    List.map samples ~f:(fun x -> Repo.detection_pipeline (root @ [ show_sample x ]) x)
+    List.map samples ~f:(fun x -> Repo.detection_pipeline mode (root @ [ show_sample x ]) x)
     |> add_simulations
   )
 
-let main do_simulations preview_mode np mem () =
+let main do_simulations preview_mode np mem outdir () =
+  let outdir = Option.value outdir ~default:"res" in
   let np = Option.value ~default:4 np in
   let mem = Option.value ~default:4 mem in
   pipeline ~do_simulations ~preview_mode ~root:[]
-  |> Bistro_app.local ~np ~mem:(mem * 1024) ~use_docker:true ~outdir:"res"
+  |> Bistro_app.local ~np ~mem:(mem * 1024) ~use_docker:true ~outdir
 
 let command =
   let spec =
@@ -182,6 +236,7 @@ let command =
     +> flag "--preview-mode" (optional int) ~doc:"INT If present, only consider K million reads"
     +> flag "--np" (optional int) ~doc:"INT Number of available processors"
     +> flag "--mem" (optional int) ~doc:"INT Available memory (in GB)"
+    +> flag "--outdir" (optional string) ~doc:"PATH Output directory"
   in
   Command.basic ~summary:"Main program" spec main
 
