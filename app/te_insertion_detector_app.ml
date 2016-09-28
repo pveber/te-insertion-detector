@@ -6,6 +6,7 @@ let () = Command.(
       "pipeline", Pipeline.command ;
       "filter-fastq-with-sam", Filter_fastq_with_sam.command ;
       "insertions-in-fasta", Insertions_in_fasta.command ;
+      "match-insertions", Match_insertions.command ;
     ]
     |> run
   )

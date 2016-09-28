@@ -21,9 +21,12 @@ let lib =
     ~dir:"lib"
     ~style:(`Pack name)
     ~findlib_deps:[
+      "biocaml.base" ;
       "biocaml.ez" ;
       "bistro.utils";
       "bistro.bioinfo";
+      "ocamlgraph" ;
+      "pipes.unix" ;
       "ppx_deriving.show" ;
     ]
 
