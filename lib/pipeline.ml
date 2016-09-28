@@ -42,7 +42,7 @@ let ltr_gtwin_fa = workflow ~descr:"echo.LTRGTWIN" [
   ]
 
 
-let ltr_idefix_fa_text = "> IDEFIX_LTR
+let ltr_idefix_fa_text = ">IDEFIX_LTR
 gtgacatatccataagtccctaagacttaagcatatgcctacatactaatacacttacaacacatacacc
 ccaatacaacatacactactccggatgtacccaacagataccagataagaataagattgttatatgatcc
 tcgagaatggaaaaaaccccaattctagataagtcacccactggtagactaaacatccgtcccctaattt
