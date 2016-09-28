@@ -21,11 +21,72 @@ gacgttgagcggacagaaccatttctgcctactctaaaatcaaaagaagaaattgaataaatatatgtca
 gcccgacggctgccttcaacttaaaacggacttgtgttctgaattggagttcatcattaca
 "
 
-let ltr_fa = workflow ~descr:"echo.LTR412" [
+let ltr_412_fa = workflow ~descr:"echo.LTR412" [
     cmd "echo" ~stdout:dest [ quote ~using:'"' (string ltr_412_fa_text) ] ;
   ]
 
-let ltr_index = Bowtie2.bowtie2_build ltr_fa
+
+let ltr_gtwin_fa_text = ">GTWIN_LTR
+agttaacaactaagagcacacactattaagagcacacatataacaaattaattaatataaacaatgctga
+cgcgcccaaactgagttcagcgctctgcgccacgaacggtcagcaacagcaatcggacaccccttatccg
+gggtaccgagctatgttgcataaatgctgagtcggcttgccgaccatggctttatggcgtgatgcattgg
+agccacagtagatttacattttcatattcttttgtattcagtcttaagccagagctttaataaagagcag
+ctattcactccggctcgcagccgtaaaatatcattttattatttgaacattctcgctgagccaaaaggcc
+agcgatcgacaaagagggcaaagtcacgccctccgacataaacttcataagaagatattatcctattgtc
+cctggtagcagccagcaccagatctccaccgcctggagaccaccggacacatcccgaaggaggaacacat
+taatt
+"
+
+let ltr_gtwin_fa = workflow ~descr:"echo.LTRGTWIN" [
+    cmd "echo" ~stdout:dest [ quote ~using:'"' (string ltr_gtwin_fa_text) ] ;
+  ]
+
+
+let ltr_idefix_fa_text = "> IDEFIX_LTR
+gtgacatatccataagtccctaagacttaagcatatgcctacatactaatacacttacaacacatacacc
+ccaatacaacatacactactccggatgtacccaacagataccagataagaataagattgttatatgatcc
+tcgagaatggaaaaaaccccaattctagataagtcacccactggtagactaaacatccgtcccctaattt
+aaacaattccttgcttaagcctcaccccatcgtcacattcccacgttcaaagctcggagccgcaatcccg
+aaaaacaaaagtatcgatttcaataaacaaattataagaatctaagagcacttgtatccaagagcaaatg
+cacttgaatccaagagaaacgcaaagctttttctctttacgatcagaatcctaaagtctaaagtccatat
+tagaaaagctcgataccgaggcttgaacgtcaaccaaatcagaataattatcagagttcagtttgagacc
+taattgtaaaaggttcggtgttcttctcaaataaaaagattgtaatcatttagtgaaataaaaattatat
+ttttttcacttataaatattgcaagtatttaatt
+"
+
+let ltr_idefix_fa = workflow ~descr:"echo.LTR_IDEFIX" [
+    cmd "echo" ~stdout:dest [ quote ~using:'"' (string ltr_idefix_fa_text) ] ;
+  ]
+
+
+let ltr_stalker2_fa_text = ">STALKER2_LTR
+tgtagtgtatctaccctcactataactctactctacatatatataagtaacgtacatacattgtgacact
+ttgttgcaaacacaaataaacataattcacatcaaagaccacatgcacttacataaacactccagccaat
+gaaatacgatctaacgcttatacataagccgatcgcggagcgtgagaatgctgagcatgcacttagcagc
+tcaagtggtcaagccatacataacatatgtatgccttctgcatacacatgtatatgtatatacaatatgt
+acaatatgtaagaacaccatgtacgggtagctgtacccaaagacagcaacataggattcattcaaataaa
+acgattcaaacggaacagacgctctgagctattcaatatctattacactgagctattacttattacttat
+taca
+"
+
+let ltr_stalker2_fa = workflow ~descr:"echo.LTR_STALKER2" [
+    cmd "echo" ~stdout:dest [ quote ~using:'"' (string ltr_stalker2_fa_text) ] ;
+  ]
+
+let ltr_zam_fa_text = ">ZAM_LTR
+agttaccgacccatcggtaccatacaccacccctccctctaagccaccacgcctacacaagtagaagaca
+tcgaaccgggaagctttgcgatacaaagttgcagcataaacatcaacaacgggtcagacgccgacatccg
+cccaaaatgctgacaccacatccttttcgctcagacagaacaacgcatacaattccatatacatacgtat
+aaacatactcatactttctgctgtgtcagatactttatttctaagaactttaacattgtaatacatacac
+acatattcactgttagcccatttaagacgaagaataaagacgaccacagtcgagtgcaagcagcaaacac
+ttgtagacgtacataatctccgatcaaaattctcccaagacgaccgtggctacgttctggacccgcataa
+ctcctctatctttctgagtgataatacctccgcaagactccccggaggtaac
+"
+
+let ltr_zam_fa = workflow ~descr:"echo.LTRZAM" [
+    cmd "echo" ~stdout:dest [ quote ~using:'"' (string ltr_zam_fa_text) ] ;
+  ]
+
 
 let fastq_gz_head (fq_gz : _ fastq gz workflow as 'a) i : 'a =
   workflow ~descr:"fastq_gz_head" [
@@ -61,7 +122,7 @@ let filter_fastq_with_sam (sam : sam workflow) (fq : 'a fastq gz workflow) : 'a 
   ]
 
 let match_insertions (peaks1 : Macs2.peaks_xls workflow) (peaks2 : Macs2.peaks_xls workflow) =
-  workflow ~descr:"match_insertions" [
+  workflow ~descr:"match_insertions" ~version:2 [
     cmd "te-insertion-detector" [
       string "match-insertions" ;
       dep peaks1 ;
@@ -87,7 +148,7 @@ let gzip x =
 
 let bowtie2_env = docker_image ~account:"pveber" ~name:"bowtie2" ~tag:"2.2.9" ()
 
-let bowtie2 index fqs =
+let bowtie2 (index : Bowtie2.index workflow) fqs =
   let args = match fqs with
     | `single_end fqs ->
       opt "-U" (list gzdep ~sep:",") fqs
@@ -116,6 +177,11 @@ type sample = G0 | G1
 
 let samples = [ G0 ; G1 ]
 
+type transposable_element = LTR412 | IDEFIX | STALKER2 | ZAM | GTWIN
+[@@deriving show]
+
+let transposable_elements = [ LTR412 ; IDEFIX ; STALKER2 ; ZAM ; GTWIN ]
+
 
 module Pipeline = struct
 
@@ -130,8 +196,18 @@ module Pipeline = struct
     Unix_tools.wget "ftp://ftp.flybase.net/genomes/Drosophila_melanogaster/dmel_r6.11_FB2016_03/gff/dmel-all-r6.11.gff.gz"
     |> Unix_tools.gunzip
 
-  let witness_reads_one_way fq1 fq2 =
-    let sam1 = bowtie2 ltr_index (`single_end [fq1]) in
+  let fasta_of_te = function
+    | LTR412 -> ltr_412_fa
+    | IDEFIX -> ltr_idefix_fa
+    | STALKER2 -> ltr_stalker2_fa
+    | ZAM -> ltr_zam_fa
+    | GTWIN -> ltr_gtwin_fa
+
+  let index_of_te te = Bowtie2.bowtie2_build (fasta_of_te te)
+
+
+  let witness_reads_one_way te_index fq1 fq2 =
+    let sam1 = bowtie2 te_index (`single_end [fq1]) in
     let filtered2 = filter_fastq_with_sam sam1 fq2 in
     let witness_reads = bowtie2 mel_genome_index (`single_end [filtered2]) in
     object
@@ -140,9 +216,9 @@ module Pipeline = struct
       method anchor_reads = sam1
     end
 
-  let te_positions fq1 fq2 =
-    let wr1 = witness_reads_one_way fq1 fq2 in
-    let wr2 = witness_reads_one_way fq2 fq1 in
+  let te_positions te_index fq1 fq2 =
+    let wr1 = witness_reads_one_way te_index fq1 fq2 in
+    let wr2 = witness_reads_one_way te_index fq2 fq1 in
     let insertions =
       Macs2.callpeak
         ~nomodel:true ~extsize:150 ~qvalue:0.1 Macs2.sam
@@ -188,21 +264,15 @@ module Pipeline = struct
     : ([`genome_with_insertions] directory, fasta) selector
     = selector ["genome.fa"]
 
-  let simulation root =
+  let simulation te =
     let open Bistro_app in
-    let simulated_genome = insertions_in_fasta ~te:ltr_fa ~genome:mel_genome in
-    let f n =
-      let fq1, fq2 = sequencer n (simulated_genome / genome_of_insertions_in_fasta) in
-      (te_positions (gzip fq1) (gzip fq2))#insertions
-    in
-    [
-      ["simulation" ; "genome"] %> simulated_genome ;
-      ["simulation" ; "positions_1X"]   %> f 1. ;
-      ["simulation" ; "positions_10X"]  %> f 10. ;
-      ["simulation" ; "positions_30X"]  %> f 30. ;
-      ["simulation" ; "positions_50X"]  %> f 50. ;
-      ["simulation" ; "positions_100X"] %> f 100. ;
-    ]
+    let simulated_genome = insertions_in_fasta ~te:(fasta_of_te te) ~genome:mel_genome in
+    object
+      method genome = simulated_genome
+      method tep n =
+        let fq1, fq2 = sequencer n (simulated_genome / genome_of_insertions_in_fasta) in
+        (te_positions (index_of_te te) (gzip fq1) (gzip fq2))#insertions
+    end
 
   let sample_path_prefix = function
     | G0 -> "data/Severine/DNA-seq_donneesIGH/G0_parent/150102_I595_FCC5W8BACXX_L1_wHAIPI014963-113"
@@ -220,14 +290,15 @@ module Pipeline = struct
       fastq_gz_head fq (i * 1_000_000)
     | `full -> fq
 
-  let te_positions mode x =
+  let te_positions mode te x =
     let fq1 = fastq_gz mode `Left x in
     let fq2 = fastq_gz mode `Right x in
-    te_positions fq1 fq2
+    te_positions (index_of_te te) fq1 fq2
 
-  let comparison mode =
-    match_insertions (te_positions mode G0)#insertion_xls (te_positions mode G1)#insertion_xls
+  let comparison mode te =
+    match_insertions (te_positions mode te G0)#insertion_xls (te_positions mode te G1)#insertion_xls
 end
+
 
 module Repo = struct
   open Bistro_app
@@ -236,33 +307,53 @@ module Repo = struct
     | `full -> [ "full" ] @ path
     | `preview i -> [ "preview" ; sprintf "%03d" i ] @ path
 
-  let detection_pipeline mode x =
-    let tep = Pipeline.te_positions mode x in
-    let p u = root mode (show_sample x :: u) in
+  let simulation () =
+    let f te =
+      let sim = Pipeline.simulation te in
+      let p x = ["simulation" ; show_transposable_element te ; x ] in
+      [
+        p "genome" %> sim#genome ;
+        p "positions_1X"   %> sim#tep 1. ;
+        p "positions_10X"  %> sim#tep 10. ;
+        p "positions_30X"  %> sim#tep 30. ;
+        p "positions_50X"  %> sim#tep 50. ;
+        p "positions_100X" %> sim#tep 100. ;
+      ]
+    in
+    List.map transposable_elements ~f
+    |> List.concat
+
+  let detection_pipeline_for_te mode te x =
+    let tep = Pipeline.te_positions mode te x in
+    let p u = root mode (show_transposable_element te :: show_sample x :: u) in
     [
       p[ "te_positions" ] %> tep#insertions ;
       p[ "witness_reads1" ] %> tep#way1#witness_reads ;
       p[ "witness_reads2" ] %> tep#way2#witness_reads ;
     ]
 
+  let analysis_pipeline_for_te mode te =
+    detection_pipeline_for_te mode te G0
+    @ detection_pipeline_for_te mode te G1
+    @
+    [
+      root mode (show_transposable_element te :: [ "comparison" ]) %> Pipeline.comparison mode te
+    ]
+
+  let analysis_pipeline mode =
+    List.map transposable_elements ~f:(analysis_pipeline_for_te mode)
+    |> List.concat
+
   let make ~do_simulations ~preview_mode =
     let add_simulations accu =
-      if do_simulations then Pipeline.simulation () :: accu else accu
+      if do_simulations then simulation () @ accu else accu
     in
     let mode = match preview_mode with
       | None -> `full
       | Some i -> `preview i
     in
-    List.concat (
-      (
-        List.map samples ~f:(fun x -> detection_pipeline mode x)
-        |> add_simulations
-      )
-      @
-      [
-        [ root mode [ "comparison" ] %> Pipeline.comparison mode ]
-      ]
-    )
+    analysis_pipeline mode
+    |> add_simulations
 end
 
 let main do_simulations preview_mode np mem outdir () =

@@ -169,9 +169,9 @@ let output_alignment oc xs =
       | `Edge (V.Right q, V.Left p) ->
         fprintf oc "%s\t%d\t%d\t%f\t%s\t%d\t%d\t%f\n" p.chr p.start p.end_ p.log10qvalue q.chr q.start q.end_ q.log10qvalue
       | `Singleton (V.Left p) ->
-        fprintf oc "%s\t%d\t%d\t%f\t.\t.\t.\n" p.chr p.start p.end_ p.log10qvalue
+        fprintf oc "%s\t%d\t%d\t%f\t.\t.\t.\t.\n" p.chr p.start p.end_ p.log10qvalue
       | `Singleton (V.Right q) ->
-        fprintf oc ".\t.\t.\t%s\t%d\t%d\t%f\n" q.chr q.start q.end_ q.log10qvalue
+        fprintf oc ".\t.\t.\t.\t%s\t%d\t%d\t%f\n" q.chr q.start q.end_ q.log10qvalue
       | _ -> assert false
     )
 
