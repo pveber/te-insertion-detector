@@ -9,7 +9,7 @@ license: "GPL3"
 dev-repo: "https://github.com/pveber/te-insertion-detector.git"
 
 build: [
-  [make native]
+  [make "native"]
 ]
 
 install: [
