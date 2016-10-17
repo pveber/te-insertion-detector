@@ -812,12 +812,12 @@ module Repo = struct
     |> add_simulations
 end
 
-let main do_simulations preview_mode np mem outdir () =
+let main do_simulations preview_mode np mem outdir verbose () =
   let outdir = Option.value outdir ~default:"res" in
   let np = Option.value ~default:4 np in
   let mem = Option.value ~default:4 mem in
   let repo = Repo.make ~do_simulations ~preview_mode in
-  Bistro_app.(run ~np ~mem:(mem * 1024) ~use_docker:true (of_repo ~outdir repo))
+  Bistro_app.(run ~np ~mem:(mem * 1024) ~verbose ~use_docker:true (of_repo ~outdir repo))
 
 let command =
   let spec =
@@ -828,6 +828,7 @@ let command =
     +> flag "--np" (optional int) ~doc:"INT Number of available processors"
     +> flag "--mem" (optional int) ~doc:"INT Available memory (in GB)"
     +> flag "--outdir" (optional string) ~doc:"PATH Output directory"
+    +> flag "--verbose" no_arg ~doc:" Log actions"
   in
   Command.basic ~summary:"Main program" spec main
 
