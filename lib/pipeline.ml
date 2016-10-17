@@ -599,6 +599,7 @@ let gzip x =
   ]
 
 let bowtie2_env = docker_image ~account:"pveber" ~name:"bowtie2" ~tag:"2.2.9" ()
+let samtools_env = docker_image ~account:"pveber" ~name:"samtools" ~tag:"1.3.1" ()
 
 let bowtie2 (index : Bowtie2.index workflow) fqs =
   let args = match fqs with
@@ -612,12 +613,18 @@ let bowtie2 (index : Bowtie2.index workflow) fqs =
       ]
   in
   workflow ~descr:"te-insertion-locator-bowtie2" ~mem:(3 * 1024) ~np:8 [
-    cmd "bowtie2" ~env:bowtie2_env [
-      string "--local" ;
-      opt "--threads" ident np ;
-      opt "-x" (fun index -> seq [dep index ; string "/index"]) index ;
-      args ;
-      opt "-S" ident dest ;
+    pipe [
+      cmd "bowtie2" ~env:bowtie2_env [
+        string "--local" ;
+        opt "--threads" ident np ;
+        opt "-x" (fun index -> seq [dep index ; string "/index"]) index ;
+        args ;
+      ] ;
+      cmd "samtools" ~env:samtools_env ~stdout:dest [
+        string "view" ;
+        string "-" ;
+        opt "-q" int 5 ;
+      ] ;
     ]
   ]
 
