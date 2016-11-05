@@ -820,17 +820,16 @@ module Repo = struct
 end
 
 let main do_simulations preview_mode np mem outdir verbose () =
-  let config = Bistro_engine.Task.config ~db_path:"_bistro" ~use_docker:true in
   let logger =
     Bistro_logger.tee
       (Bistro_console_logger.create ())
-      (Bistro_html_logger.create "report.html" config)
+      (Bistro_html_logger.create "report.html")
   in
   let outdir = Option.value outdir ~default:"res" in
   let np = Option.value ~default:4 np in
   let mem = Option.value ~default:4 mem in
   let repo = Repo.make ~do_simulations ~preview_mode in
-  Bistro_app.(run ~config ~logger ~np ~mem:(mem * 1024) (of_repo ~outdir repo))
+  Bistro_app.(run ~logger ~np ~mem:(mem * 1024) (of_repo ~outdir repo))
 
 let command =
   let spec =
