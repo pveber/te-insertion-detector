@@ -605,6 +605,10 @@ let gzip x =
 let bowtie2_env = docker_image ~account:"pveber" ~name:"bowtie2" ~tag:"2.2.9" ()
 let samtools_env = docker_image ~account:"pveber" ~name:"samtools" ~tag:"1.3.1" ()
 
+(* FIXME!!!  This wrapper doesn't work as one could expect: docker
+   logs everything that passes on stdout, which takes LOTS of space in
+   that particular case. Either use named pipes or intermediate files...
+*)
 let bowtie2 (index : Bowtie2.index workflow) fqs =
   let args = match fqs with
     | `single_end fqs ->
