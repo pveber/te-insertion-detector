@@ -565,11 +565,15 @@ let gzdest =
 
 let filter_fastq_with_sam (sam : sam workflow) (fq : 'a fastq gz workflow) : 'a fastq gz workflow =
   workflow ~descr:"filter_fastq_with_sam" [
-    cmd "te-insertion-detector" [
-      string "filter-fastq-with-sam" ;
-      opt "--sam" dep sam ;
-      opt "--fastq" gzdep fq ;
-      opt "--output" ident gzdest ;
+    cmd "bash" [
+      file_dump (seq ~sep:" " [
+          string "te-insertion-detector" ;
+          string "filter-fastq-with-sam" ;
+          opt "--sam" dep sam ;
+          opt "--fastq" gzdep fq ;
+          opt "--output" ident gzdest ;
+        ] ;
+        )
     ]
   ]
 
