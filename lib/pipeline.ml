@@ -636,6 +636,27 @@ let bowtie2 (index : Bowtie2.index workflow) fqs =
     ]
   ]
 
+let bowtie2 (index : Bowtie2.index workflow) fqs =
+  let args = match fqs with
+    | `single_end fqs ->
+      opt "-U" (list gzdep ~sep:",") fqs
+    | `paired_end (fqs1, fqs2) ->
+      seq [
+        opt "-1" (list gzdep ~sep:",") fqs1 ;
+        string " " ;
+        opt "-2" (list gzdep ~sep:",") fqs2
+      ]
+  in
+  workflow ~descr:"te-insertion-locator-bowtie2" ~mem:(3 * 1024) ~np:8 [
+    cmd "bowtie2" ~env:bowtie2_env [
+      string "--local" ;
+      opt "--threads" ident np ;
+      opt "-x" (fun index -> seq [dep index ; string "/index"]) index ;
+      args ;
+      opt "-S" ident dest ;
+    ] ;
+  ]
+
 
 
 
@@ -812,7 +833,7 @@ module Repo = struct
     ]
 
   let analysis_pipeline mode =
-    List.map transposable_elements ~f:(analysis_pipeline_for_te mode)
+    List.map (* transposable_elements *) [ LTR412 ] ~f:(analysis_pipeline_for_te mode)
     |> List.concat
 
   let make ~do_simulations ~preview_mode =
