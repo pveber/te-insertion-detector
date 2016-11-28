@@ -733,7 +733,7 @@ module Pipeline = struct
     ]
 
   let genome_of_insertions_in_fasta
-    : ([`genome_with_insertions] directory, fasta) selector
+    : ([`genome_with_insertions], fasta) selector
     = selector ["genome.fa"]
 
   let simulation te =
