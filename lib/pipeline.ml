@@ -695,7 +695,7 @@ module Pipeline = struct
     | Known_TE te -> fasta_of_known_te te
     | User_TE { id ; sequence } ->
       workflow ~descr:("echo." ^ id) [
-        cmd "echo" ~stdout:dest [ quote ~using:'"' (string sequence) ] ;
+        cmd "echo" ~stdout:dest [ quote ~using:'"' (string (">" ^ id ^ "\\n"  ^ sequence)) ] ;
       ]
 
   let index_of_te te = Bowtie2.bowtie2_build (fasta_of_te te)
