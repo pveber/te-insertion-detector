@@ -4,10 +4,11 @@
 (* #require "bistro.bioinfo bistro.utils core" *)
 
 open Core.Std
+open CFStream
 open Bistro.Std
 open Bistro_bioinfo.Std
 open Bistro.EDSL
-
+open Biocaml_ez
 
 (* === CUSTOM WRAPPERS === *)
 
@@ -637,18 +638,33 @@ let bowtie2 (index : Bowtie2.index workflow) fqs =
   ]
 
 
-
-
 type sample = G0 | G1
 [@@deriving show]
 
 let samples = [ G0 ; G1 ]
 
-type transposable_element = LTR412 | IDEFIX | STALKER2 | ZAM | GTWIN | CIRCE | DM176 | FW | I_DM | JOCKEY
+type known_transposable_element = LTR412 | IDEFIX | STALKER2 | ZAM | GTWIN | CIRCE | DM176 | FW | I_DM | JOCKEY
 [@@deriving show]
 
-let transposable_elements = [ LTR412 ; IDEFIX ; STALKER2 ; ZAM ; GTWIN ; CIRCE ; DM176 ; FW ; I_DM ; JOCKEY]
+let known_transposable_elements = [ LTR412 ; IDEFIX ; STALKER2 ; ZAM ; GTWIN ; CIRCE ; DM176 ; FW ; I_DM ; JOCKEY]
 
+type transposable_element =
+  | Known_TE of known_transposable_element
+  | User_TE of { id : string ; sequence : string }
+
+let show_transposable_element = function
+  | Known_TE te -> show_known_transposable_element te
+  | User_TE { id } -> id
+
+let load_transposable_elements fn =
+  Fasta.(
+    with_file fn ~f:(fun _ items ->
+        Stream.map items ~f:(fun it ->
+            User_TE { id = it.description ; sequence = it.sequence }
+          )
+        |> Stream.to_list
+      )
+  )
 
 module Pipeline = struct
 
@@ -663,7 +679,7 @@ module Pipeline = struct
     Unix_tools.wget "ftp://ftp.flybase.net/genomes/Drosophila_melanogaster/dmel_r6.11_FB2016_03/gff/dmel-all-r6.11.gff.gz"
     |> Unix_tools.gunzip
 
-  let fasta_of_te = function
+  let fasta_of_known_te = function
     | LTR412 -> ltr_412_fa
     | IDEFIX -> ltr_idefix_fa
     | STALKER2 -> ltr_stalker2_fa
@@ -674,6 +690,13 @@ module Pipeline = struct
     | FW -> fw_fa
     | I_DM -> i_dm_fa
     | JOCKEY -> jockey_fa
+
+  let fasta_of_te = function
+    | Known_TE te -> fasta_of_known_te te
+    | User_TE { id ; sequence } ->
+      workflow ~descr:("echo." ^ id) [
+        cmd "echo" ~stdout:dest [ quote ~using:'"' (string sequence) ] ;
+      ]
 
   let index_of_te te = Bowtie2.bowtie2_build (fasta_of_te te)
 
@@ -778,7 +801,7 @@ module Repo = struct
     | `full -> [ "full" ] @ path
     | `preview i -> [ "preview" ; sprintf "%03d" i ] @ path
 
-  let simulation () =
+  let simulation transposable_elements =
     let f te =
       let sim = Pipeline.simulation te in
       let p x = ["simulation" ; show_transposable_element te ; x ] in
@@ -811,23 +834,27 @@ module Repo = struct
       root mode (show_transposable_element te :: [ "comparison" ]) %> Pipeline.comparison mode te
     ]
 
-  let analysis_pipeline mode =
+  let analysis_pipeline mode transposable_elements =
     List.map transposable_elements ~f:(analysis_pipeline_for_te mode)
     |> List.concat
 
-  let make ~do_simulations ~preview_mode =
+  let make ?te_list ~do_simulations ~preview_mode =
+    let transposable_elements = match te_list with
+      | None -> List.map ~f:(fun te -> Known_TE te) known_transposable_elements
+      | Some fn -> load_transposable_elements fn
+    in
     let add_simulations accu =
-      if do_simulations then simulation () @ accu else accu
+      if do_simulations then simulation transposable_elements @ accu else accu
     in
     let mode = match preview_mode with
       | None -> `full
       | Some i -> `preview i
     in
-    analysis_pipeline mode
+    analysis_pipeline mode transposable_elements
     |> add_simulations
 end
 
-let main do_simulations preview_mode np mem outdir verbose () =
+let main do_simulations preview_mode np mem outdir verbose te_list () =
   let logger =
     Bistro_logger.tee
       (Bistro_console_logger.create ())
@@ -836,7 +863,7 @@ let main do_simulations preview_mode np mem outdir verbose () =
   let outdir = Option.value outdir ~default:"res" in
   let np = Option.value ~default:4 np in
   let mem = Option.value ~default:4 mem in
-  let repo = Repo.make ~do_simulations ~preview_mode in
+  let repo = Repo.make ~do_simulations ~preview_mode ?te_list in
   Bistro_app.(run ~logger ~np ~mem:(mem * 1024) (of_repo ~outdir repo))
 
 let command =
@@ -849,6 +876,7 @@ let command =
     +> flag "--mem" (optional int) ~doc:"INT Available memory (in GB)"
     +> flag "--outdir" (optional string) ~doc:"PATH Output directory"
     +> flag "--verbose" no_arg ~doc:" Log actions"
+    +> flag "--te-list" (optional string) ~doc:"PATH FASTA containing elements to be tested"
   in
   Command.basic ~summary:"Main program" spec main
 
