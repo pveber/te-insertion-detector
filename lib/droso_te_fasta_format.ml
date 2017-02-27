@@ -13,12 +13,13 @@ open Biocaml_ez.Std
 let main in_fa out_fa () =
   Fasta.with_file in_fa ~f:(fun _ items ->
       Out_channel.with_file out_fa ~f:(fun oc ->
-          Stream.iter items ~f:(fun it ->
-              let description =
-                String.split ~on:' ' it.Fasta.description
-                |> List.hd_exn
-              in
-              fprintf oc ">%s\n%s\n" description it.Fasta.sequence
+          Stream.iter items ~f:(fun { Fasta.description ; sequence } ->
+              if String.is_substring description ~substring:"melanogaster" then
+                let description =
+                  String.split ~on:'\t' description
+                  |> List.hd_exn
+                in
+                fprintf oc ">%s\n%s\n" description sequence
             )
         )
     )
