@@ -724,7 +724,7 @@ if [ `cat $F | wc -l` -gt 20 ]; then
   macs2 callpeak --outdir $DEST --name macs2 --extsize 150 --nomodel --qvalue 0.1 --treatment $F;
 else
   mkdir -p $DEST;
-  touch $DEST/macs_peaks.xls;
+  touch $DEST/macs2_peaks.xls;
 fi
 |}
       ]
