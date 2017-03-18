@@ -711,12 +711,34 @@ module Pipeline = struct
       method anchor_reads = sam1
     end
 
+  (* this is because of a bug in macs2 #101 *)
+  let macs2 treatment =
+    let env = docker_image ~account:"pveber" ~name:"macs2" ~tag:"2.1.1" () in
+    let script =
+      seq ~sep:"\n" [
+        string "set -e" ;
+        seq ~sep:"" [ string "export F='" ; list ~sep:" " dep treatment ; string "'" ] ;
+        seq ~sep:"" [ string "export DEST='" ; dest ; string "'" ] ;
+        string {|
+if [ `cat $F | wc -l` -gt 20 ]; then
+  macs2 callpeak --outdir $DEST --name macs2 --extsize 150 --nomodel --qvalue 0.1 --treatment $F;
+else
+  mkdir -p $DEST;
+  touch $DEST/macs_peaks.xls;
+fi
+|}
+      ]
+    in
+    workflow ~descr:"custom.macs2" [
+      cmd "bash" ~env [ file_dump script ]
+    ]
+
   let te_positions te_index fq1 fq2 =
     let wr1 = witness_reads_one_way te_index fq1 fq2 in
     let wr2 = witness_reads_one_way te_index fq2 fq1 in
     let insertions =
-      Macs2.callpeak
-        ~nomodel:true ~extsize:150 ~qvalue:0.1 Macs2.sam
+      (* Macs2.callpeak *) macs2
+        (* ~nomodel:true ~extsize:150 ~qvalue:0.1*) (* Macs2.sam *)
         [ wr1#witness_reads ; wr2#witness_reads ] in
     object
       method way1 = wr1
