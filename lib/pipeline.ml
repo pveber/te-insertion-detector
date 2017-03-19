@@ -720,7 +720,7 @@ module Pipeline = struct
         seq ~sep:"" [ string "export F='" ; list ~sep:" " dep treatment ; string "'" ] ;
         seq ~sep:"" [ string "export DEST='" ; dest ; string "'" ] ;
         string {|
-if [ `cat $F | wc -l` -gt 20 ]; then
+if [ `head -q -n 1000 $F | wc -l` -gt 20 ]; then
   macs2 callpeak --outdir $DEST --name macs2 --extsize 150 --nomodel --qvalue 0.1 --treatment $F;
 else
   mkdir -p $DEST;
@@ -813,6 +813,21 @@ fi
 
   let comparison mode te =
     match_insertions (te_positions mode te G0)#insertion_xls (te_positions mode te G1)#insertion_xls
+
+  let stats_of_comparison comp = comp / selector ["stats"]
+
+  let assemble_stats elements stats =
+    let impl paths dest =
+      List.map2_exn elements paths ~f:(fun te p ->
+          show_transposable_element te ^ "\t" ^ (List.hd_exn (In_channel.read_lines p))
+        )
+      |> Out_channel.write_lines dest
+    in
+    E.(
+      file
+        ~descr:"assemble_stats"
+        (primitive "assemble_stats" impl $ deps stats $ dest)
+    )
 end
 
 
@@ -849,16 +864,24 @@ module Repo = struct
     ]
 
   let analysis_pipeline_for_te mode te =
-    detection_pipeline_for_te mode te G0
-    @ detection_pipeline_for_te mode te G1
-    @
-    [
-      root mode (show_transposable_element te :: [ "comparison" ]) %> Pipeline.comparison mode te
-    ]
+    let comparison = Pipeline.comparison mode te in
+    let repo =
+      detection_pipeline_for_te mode te G0
+      @ detection_pipeline_for_te mode te G1
+      @
+      [
+        root mode (show_transposable_element te :: [ "comparison" ]) %> comparison
+      ]
+    in
+    repo, Pipeline.stats_of_comparison comparison
 
   let analysis_pipeline mode transposable_elements =
-    List.map transposable_elements ~f:(analysis_pipeline_for_te mode)
-    |> List.concat
+    let repos, stats =
+      List.map transposable_elements ~f:(analysis_pipeline_for_te mode)
+      |> List.unzip
+    in
+    root mode ["summary"] %> Pipeline.assemble_stats transposable_elements stats
+    :: List.concat repos
 
   let make ?te_list ~do_simulations ~preview_mode =
     let transposable_elements = match te_list with
