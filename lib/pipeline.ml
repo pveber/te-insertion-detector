@@ -818,14 +818,30 @@ fi
 
   let assemble_stats elements stats =
     let impl paths dest =
-      List.map2_exn elements paths ~f:(fun te p ->
-          show_transposable_element te ^ "\t" ^ (List.hd_exn (In_channel.read_lines p))
-        )
-      |> Out_channel.write_lines dest
+      let match_stats_line c =
+        let open Match_insertions in
+        sprintf "%d\t%d\t%d\t%d\n"
+          c.left_only
+          c.left_with_match
+          c.right_only
+          c.right_with_match
+      in
+      let header = "left_only\tleft_with_match\tright_only\tright_with_match\n" in
+      let lines =
+        List.map2_exn elements paths ~f:(fun te p ->
+            let counts =
+              In_channel.read_all p
+              |> Sexp.of_string
+              |> Match_insertions.match_stats_of_sexp
+            in
+            show_transposable_element te ^ "\t" ^ (match_stats_line counts)
+          )
+      in
+      Out_channel.write_lines dest (header :: lines)
     in
     Bistro.EDSL'.(
       file
-        ~descr:"assemble_stats"
+        ~descr:"assemble_stats[1]"
         (pure "assemble_stats" impl $ deps stats $ dest)
     )
 end
