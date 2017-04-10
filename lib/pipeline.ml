@@ -820,13 +820,13 @@ fi
     let impl paths dest =
       let match_stats_line c =
         let open Match_insertions in
-        sprintf "%d\t%d\t%d\t%d\n"
+        sprintf "%d\t%d\t%d\t%d"
           c.left_only
           c.left_with_match
           c.right_only
           c.right_with_match
       in
-      let header = "left_only\tleft_with_match\tright_only\tright_with_match\n" in
+      let header = "left_only\tleft_with_match\tright_only\tright_with_match" in
       let lines =
         List.map2_exn elements paths ~f:(fun te p ->
             let counts =
@@ -841,7 +841,7 @@ fi
     in
     Bistro.EDSL'.(
       file
-        ~descr:"assemble_stats[1]"
+        ~descr:"assemble_stats[2]"
         (pure "assemble_stats" impl $ deps stats $ dest)
     )
 end
