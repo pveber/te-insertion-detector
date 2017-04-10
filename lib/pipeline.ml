@@ -823,17 +823,15 @@ fi
         )
       |> Out_channel.write_lines dest
     in
-    E.(
+    Bistro.EDSL'.(
       file
         ~descr:"assemble_stats"
-        (primitive "assemble_stats" impl $ deps stats $ dest)
+        (pure "assemble_stats" impl $ deps stats $ dest)
     )
 end
 
 
 module Repo = struct
-  open Bistro_app
-
   let root mode path = match mode with
     | `full -> [ "full" ] @ path
     | `preview i -> [ "preview" ; sprintf "%03d" i ] @ path
@@ -842,7 +840,7 @@ module Repo = struct
     let f te =
       let sim = Pipeline.simulation te in
       let p x = ["simulation" ; show_transposable_element te ; x ] in
-      [
+      Bistro_repo.[
         p "genome" %> sim#genome ;
         p "positions_1X"   %> sim#tep 1. ;
         p "positions_10X"  %> sim#tep 10. ;
@@ -857,7 +855,7 @@ module Repo = struct
   let detection_pipeline_for_te mode te x =
     let tep = Pipeline.te_positions mode te x in
     let p u = root mode (show_transposable_element te :: show_sample x :: u) in
-    [
+    Bistro_repo.[
       p[ "te_positions" ] %> tep#insertions ;
       p[ "witness_reads1" ] %> tep#way1#witness_reads ;
       p[ "witness_reads2" ] %> tep#way2#witness_reads ;
@@ -869,13 +867,14 @@ module Repo = struct
       detection_pipeline_for_te mode te G0
       @ detection_pipeline_for_te mode te G1
       @
-      [
+      Bistro_repo.[
         root mode (show_transposable_element te :: [ "comparison" ]) %> comparison
       ]
     in
     repo, Pipeline.stats_of_comparison comparison
 
   let analysis_pipeline mode transposable_elements =
+    let open Bistro_repo in
     let repos, stats =
       List.map transposable_elements ~f:(analysis_pipeline_for_te mode)
       |> List.unzip
@@ -909,7 +908,7 @@ let main do_simulations preview_mode np mem outdir verbose te_list () =
   let np = Option.value ~default:4 np in
   let mem = Option.value ~default:4 mem in
   let repo = Repo.make ~do_simulations ~preview_mode ?te_list in
-  Bistro_app.(run ~logger ~np ~mem:(mem * 1024) (of_repo ~outdir repo))
+  Bistro_repo.(build ~logger ~np ~mem:(mem * 1024) ~outdir repo)
 
 let command =
   let spec =
