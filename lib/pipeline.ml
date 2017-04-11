@@ -579,7 +579,7 @@ let filter_fastq_with_sam (sam : sam workflow) (fq : 'a fastq gz workflow) : 'a 
   ]
 
 let match_insertions (peaks1 : Macs2.peaks_xls workflow) (peaks2 : Macs2.peaks_xls workflow) =
-  workflow ~descr:"match_insertions" ~version:2 [
+  workflow ~descr:"match_insertions" ~version:8 [
     cmd "te-insertion-detector" [
       string "match-insertions" ;
       dep peaks1 ;
@@ -841,8 +841,8 @@ fi
     in
     Bistro.EDSL'.(
       file
-        ~descr:"assemble_stats[2]"
-        (pure "assemble_stats" impl $ deps stats $ dest)
+        ~descr:"assemble_stats"
+        (pure "assemble_stats[1]" impl $ deps stats $ dest)
     )
 end
 

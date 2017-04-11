@@ -24,6 +24,16 @@ module V = struct
   let to_peak = function
     | Left p -> p
     | Right q -> q
+
+  let id_of_peak { Macs2.Xls.chr ; start ; end_ } =
+    sprintf "%s:%d-%d" chr start end_
+
+  let tag = function
+    | Left _ -> "L"
+    | Right _ -> "R"
+
+  let id x =
+    sprintf "%s:%s" (tag x) (id_of_peak (to_peak x))
 end
 
 module G = struct
@@ -41,7 +51,25 @@ module G = struct
         accu
     in
     fold_vertex f g []
+
 end
+
+module Neato = Graph.Graphviz.Neato(
+  struct
+    open Graph.Graphviz
+    let vertex_name x = sprintf {|"%s"|} (V.id x)
+    let graph_attributes _ = [`Orientation `Portrait]
+    let vertex_attributes _ = []
+    let default_vertex_attributes _ = []
+    let edge_attributes _ = []
+    let default_edge_attributes _ = []
+    let get_subgraph = function
+      | V.Left _ -> Some { NeatoAttributes.sg_name = "Left" ; sg_attributes = [] ; sg_parent = None }
+      | V.Right _ -> Some { NeatoAttributes.sg_name = "Right" ; sg_attributes = [] ; sg_parent = None }
+
+    include G
+  end
+  )
 
 
 
@@ -175,6 +203,11 @@ let output_alignment oc xs =
       | _ -> assert false
     )
 
+let generate_dot_repr dir g =
+  let dot = Filename.concat dir "match_graph.dot"
+  and pdf = Filename.concat dir "match_graph.pdf" in
+  Out_channel.with_file dot ~f:(fun oc -> Neato.output_graph oc g) ;
+  ignore @@ Sys.command (sprintf "dot -Tpdf %s > %s" dot pdf)
 
 let main macs_xls1 macs_xls2 out_path () =
   let peaks1 = read_peaks macs_xls1 in
@@ -188,7 +221,7 @@ let main macs_xls1 macs_xls2 out_path () =
   Out_channel.with_file
     (Filename.concat out_path "alignment")
     ~f:(fun oc -> output_alignment oc (alignment g)) ;
-  ()
+  generate_dot_repr out_path g
 
 let command =
   let spec =
