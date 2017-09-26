@@ -892,23 +892,9 @@ module Repo = struct
     root mode ["summary"] %> Pipeline.assemble_stats transposable_elements stats
     :: List.concat repos
 
-  let make ?te_list ~do_simulations ~preview_mode =
-    let transposable_elements = match te_list with
-      | None -> List.map ~f:(fun te -> Known_TE te) known_transposable_elements
-      | Some fn -> load_transposable_elements fn
-    in
-    let add_simulations accu =
-      if do_simulations then simulation transposable_elements @ accu else accu
-    in
-    let mode = match preview_mode with
-      | None -> `full
-      | Some i -> `preview i
-    in
-    analysis_pipeline mode transposable_elements
-    |> add_simulations
 end
 
-let main do_simulations preview_mode np mem outdir verbose te_list () =
+let main np mem outdir verbose f =
   let logger =
     Bistro_logger.tee
       (Bistro_console_logger.create ())
@@ -917,29 +903,45 @@ let main do_simulations preview_mode np mem outdir verbose te_list () =
   let outdir = Option.value outdir ~default:"res" in
   let np = Option.value ~default:4 np in
   let mem = Option.value ~default:4 mem in
-  let repo = Repo.make ~do_simulations ~preview_mode ?te_list in
+  let repo = f () in
   Bistro_repo.(build ~logger ~np ~mem:(mem * 1024) ~outdir repo)
 
-let command =
-  let spec =
-    let open Command.Spec in
-    empty
-    +> flag "--simulations" no_arg ~doc:" Perform validation study by simulations"
-    +> flag "--preview-mode" (optional int) ~doc:"INT If present, only consider K million reads"
-    +> flag "--np" (optional int) ~doc:"INT Number of available processors"
-    +> flag "--mem" (optional int) ~doc:"INT Available memory (in GB)"
-    +> flag "--outdir" (optional string) ~doc:"PATH Output directory"
-    +> flag "--verbose" no_arg ~doc:" Log actions"
-    +> flag "--te-list" (optional string) ~doc:"PATH FASTA containing elements to be tested"
+let analysis_mode preview_mode te_list genome np mem outdir verbose () =
+  main np mem outdir verbose @@ fun () ->
+  let transposable_elements = load_transposable_elements te_list in
+  let mode = match preview_mode with
+    | None -> `full
+    | Some i -> `preview i
   in
-  Command.basic ~summary:"Main program" spec main
+  Repo.analysis_pipeline mode transposable_elements
 
+let simulation_mode np mem outdir verbose () =
+  main np mem outdir verbose @@ fun () ->
+  let te_list = List.map ~f:(fun te -> Known_TE te) known_transposable_elements in
+  Repo.simulation te_list
 
+let general_args spec =
+  let open Command.Spec in
+  spec
+  +> flag "--np" (optional int) ~doc:"INT Number of available processors"
+  +> flag "--mem" (optional int) ~doc:"INT Available memory (in GB)"
+  +> flag "--outdir" (optional string) ~doc:"PATH Output directory"
+  +> flag "--verbose" no_arg ~doc:" Log actions"
 
+let analysis_args =
+  let open Command.Spec in
+  empty
+  +> flag "--preview-mode" (optional int) ~doc:"INT If present, only consider K million reads"
+  +> flag "--te-list" (required string) ~doc:"PATH FASTA containing elements to be tested"
+  +> flag "--genome" (required string) ~doc:"PATH_OR_ID Either a path to a FASTA file or a UCSC Genome Browser ID"
+  |> general_args
 
-
-
-
+let command =
+  let open Command in
+  group ~summary:"Transposable Element Insertion Detector" [
+    "run", Command.basic ~summary:"Run detection pipeline" analysis_args analysis_mode ;
+    "simulation", Command.basic ~summary:"Validation pipeline" (general_args Command.Spec.empty) simulation_mode ;
+  ]
 
 
 (* let bed_of_aligned_reads (sam : sam workflow) : bed3 workflow = *)
