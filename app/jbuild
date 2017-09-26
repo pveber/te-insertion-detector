@@ -2,6 +2,6 @@
 
 (executable
  ((name te_insertion_detector_app)
-  (public_name te_insertion_detector)
+  (public_name te-insertion-detector)
   (libraries (te_insertion_detector))
 ))
