@@ -3,11 +3,12 @@
 *)
 (* #require "bistro.bioinfo bistro.utils core" *)
 
-open Core.Std
+open Core
 open CFStream
 open Bistro.Std
 open Bistro_bioinfo.Std
 open Bistro.EDSL
+open Bistro_utils
 open Biocaml_ez
 
 (* === CUSTOM WRAPPERS === *)
@@ -816,34 +817,27 @@ fi
 
   let stats_of_comparison comp = comp / selector ["stats"]
 
-  let assemble_stats elements stats =
-    let impl paths dest =
-      let match_stats_line c =
-        let open Match_insertions in
-        sprintf "%d\t%d\t%d\t%d"
-          c.left_only
-          c.left_with_match
-          c.right_only
-          c.right_with_match
-      in
-      let header = "left_only\tleft_with_match\tright_only\tright_with_match" in
-      let lines =
-        List.map2_exn elements paths ~f:(fun te p ->
-            let counts =
-              In_channel.read_all p
-              |> Sexp.of_string
-              |> Match_insertions.match_stats_of_sexp
-            in
-            show_transposable_element te ^ "\t" ^ (match_stats_line counts)
-          )
-      in
-      Out_channel.write_lines dest (header :: lines)
+  let%bistro assemble_stats elements stats =
+    let match_stats_line c =
+      let open Match_insertions in
+      sprintf "%d\t%d\t%d\t%d"
+        c.left_only
+        c.left_with_match
+        c.right_only
+        c.right_with_match
     in
-    Bistro.EDSL'.(
-      file
-        ~descr:"assemble_stats"
-        (pure "assemble_stats[1]" impl $ deps stats $ dest)
-    )
+    let header = "left_only\tleft_with_match\tright_only\tright_with_match" in
+    let lines =
+      List.map2_exn elements [%deps stats] ~f:(fun te p ->
+          let counts =
+            In_channel.read_all p
+            |> Sexp.of_string
+            |> Match_insertions.match_stats_of_sexp
+          in
+          show_transposable_element te ^ "\t" ^ (match_stats_line counts)
+        )
+    in
+    Out_channel.write_lines [%dest] (header :: lines)
 end
 
 

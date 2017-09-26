@@ -12,6 +12,7 @@ hist((y), breaks=20)
 hist(log(y), breaks=20)
 hist((z), breaks=20)
 hist(log(z), breaks=20)
+x11()
 plot(density(d$left_only/(d$left_only+d$left_with_match)))
 lines(density(d$right_only/(d$right_only+d$right_with_match), na.rm=T), col="red")
 

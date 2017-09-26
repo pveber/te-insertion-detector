@@ -1,5 +1,5 @@
-open Core.Std
-open Biocaml_ez.Std
+open Core
+open Biocaml_ez
 open CFStream
 open Pipes_unix
 

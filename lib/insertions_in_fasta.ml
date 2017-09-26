@@ -1,5 +1,5 @@
-open Core.Std
-open Biocaml_ez.Std
+open Core
+open Biocaml_ez
 open CFStream
 
 let chr_size fasta_path =
@@ -23,7 +23,7 @@ let random_positions chr_size =
   List.map chr_size ~f:foreach
 
 let perform_insertions_aux te_seq inserts it =
-  let positions = List.Assoc.find_exn inserts it.Fasta.description in
+  let positions = List.Assoc.find_exn ~equal:String.( = ) inserts it.Fasta.description in
   let sequence =
     List.fold_right positions ~init:it.Fasta.sequence ~f:(fun p seq ->
         String.sub seq 0 p

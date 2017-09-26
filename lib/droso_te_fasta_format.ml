@@ -5,9 +5,9 @@
 
    Sequence names should be extracted from the fasta comment line *)
 
-open Core.Std
+open Core
 open CFStream
-open Biocaml_ez.Std
+open Biocaml_ez
 
 
 let main in_fa out_fa () =
