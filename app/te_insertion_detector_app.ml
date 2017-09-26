@@ -1,4 +1,4 @@
-open Core.Std
+open Core
 open Te_insertion_detector
 
 let () = Command.(
