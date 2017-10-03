@@ -904,7 +904,7 @@ let main np mem outdir verbose f =
   let np = Option.value ~default:4 np in
   let mem = Option.value ~default:4 mem in
   let repo = f () in
-  Bistro_repo.(build ~logger ~np ~mem:(mem * 1024) ~outdir repo)
+  Bistro_repo.(build ~logger ~np ~mem:(`GB mem) ~outdir repo)
 
 let analysis_mode preview_mode te_list genome np mem outdir verbose () =
   main np mem outdir verbose @@ fun () ->

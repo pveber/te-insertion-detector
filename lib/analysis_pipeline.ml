@@ -224,7 +224,7 @@ let main np mem outdir verbose f =
   let np = Option.value ~default:4 np in
   let mem = Option.value ~default:4 mem in
   let repo = f () in
-  Bistro_repo.(build ~logger ~np ~mem:(mem * 1024) ~outdir repo)
+  Bistro_repo.(build ~logger ~np ~mem:(`GB mem) ~outdir repo)
 
 let main preview_mode te_list genome fq1 fq2 np mem outdir verbose () =
   let logger =
@@ -243,7 +243,7 @@ let main preview_mode te_list genome fq1 fq2 np mem outdir verbose () =
     in
     Repo.analysis_pipeline mode ~transposable_elements ~genome ~fq1 ~fq2
   in
-  Bistro_repo.(build ~logger ~np ~mem:(mem * 1024) ~outdir repo)
+  Bistro_repo.(build ~logger ~np ~mem:(`GB mem) ~outdir repo)
 
 
 let cli_spec =
