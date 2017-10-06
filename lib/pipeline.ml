@@ -102,28 +102,13 @@ let bowtie2 (index : Bowtie2.index workflow) fqs =
     ]
   ]
 
-
-type sample = G0 | G1
-[@@deriving show]
-
-let samples = [ G0 ; G1 ]
-
-type known_transposable_element = LTR412 | IDEFIX | STALKER2 | ZAM | GTWIN | CIRCE | DM176 | FW | I_DM | JOCKEY
-[@@deriving show]
-
-let known_transposable_elements = [ LTR412 ; IDEFIX ; STALKER2 ; ZAM ; GTWIN ; CIRCE ; DM176 ; FW ; I_DM ; JOCKEY]
-
-type transposable_element =
-  | User_TE of { id : string ; sequence : string }
-
-let show_transposable_element = function
-  | User_TE { id } -> id
+type transposable_element = { id : string ; sequence : string }
 
 let load_transposable_elements fn =
   Fasta.(
     with_file fn ~f:(fun _ items ->
         Stream.map items ~f:(fun it ->
-            User_TE { id = it.description ; sequence = it.sequence }
+            { id = it.description ; sequence = it.sequence }
           )
         |> Stream.to_list
       )
@@ -131,8 +116,7 @@ let load_transposable_elements fn =
 
 module Pipeline = struct
 
-  let fasta_of_te = function
-    | User_TE { id ; sequence } ->
+  let fasta_of_te { id ; sequence } =
       workflow ~descr:("echo." ^ id) [
         cmd "echo" ~stdout:dest [ quote ~using:'"' (string (">" ^ id ^ "\\n"  ^ sequence)) ] ;
       ]
@@ -172,7 +156,8 @@ fi
       cmd "bash" ~env [ file_dump script ]
     ]
 
-  let te_positions ~te_index ~genome_index fq1 fq2 =
+  let te_positions ~te ~genome_index fq1 fq2 =
+    let te_index = index_of_te te in
     let wr1 = witness_reads_one_way ~te_index ~genome_index fq1 fq2 in
     let wr2 = witness_reads_one_way ~te_index ~genome_index fq2 fq1 in
     let insertions =
@@ -207,23 +192,22 @@ fi
     let fq1 = fastq_gz mode fq1 in
     let fq2 = fastq_gz mode fq2 in
     let genome_index = Bowtie2.bowtie2_build (fetch_genome genome) in
-    List.map te_list ~f:(fun (User_TE { id } as te) ->
-        let te_index = index_of_te te in
-        te_positions ~te_index ~genome_index fq1 fq2
+    List.map te_list ~f:(fun ({ id } as te) ->
+        te_positions ~te ~genome_index fq1 fq2
       )
 end
 
 
 module Repo = struct
   let root mode path = match mode with
-    | `full -> [ "full" ] @ path
+    | `full -> path
     | `preview i -> [ "preview" ; sprintf "%03d" i ] @ path
 
-  let analysis_pipeline mode transposable_elements fq1 fq2 genome =
+  let analysis_pipeline mode transposable_elements ~fq1 ~fq2 ~genome =
     let open Bistro_repo in
     let results = Pipeline.detection mode transposable_elements fq1 fq2 genome in
     let repos =
-      List.map2_exn transposable_elements results ~f:(fun (User_TE { id }) tep ->
+      List.map2_exn transposable_elements results ~f:(fun { id } tep ->
           let p u = root mode (id :: u) in
           Bistro_repo.[
             p[ "te_positions" ] %> tep#insertions ;
@@ -236,7 +220,7 @@ module Repo = struct
 
 end
 
-let main np mem outdir verbose f =
+let main preview_mode te_list fq1 fq2 genome np mem outdir verbose () =
   let logger =
     Bistro_logger.tee
       (Bistro_console_logger.create ())
@@ -245,66 +229,29 @@ let main np mem outdir verbose f =
   let outdir = Option.value outdir ~default:"res" in
   let np = Option.value ~default:4 np in
   let mem = Option.value ~default:4 mem in
-  let repo = f () in
+  let repo =
+    let transposable_elements = load_transposable_elements te_list in
+    let mode = match preview_mode with
+      | None -> `full
+      | Some i -> `preview i
+    in
+    Repo.analysis_pipeline mode transposable_elements ~fq1 ~fq2 ~genome
+  in
   Bistro_repo.(build ~logger ~np ~mem:(`GB mem) ~outdir repo)
 
-let analysis_mode preview_mode te_list fq1 fq2 genome np mem outdir verbose () =
-  main np mem outdir verbose @@ fun () ->
-  let transposable_elements = load_transposable_elements te_list in
-  let mode = match preview_mode with
-    | None -> `full
-    | Some i -> `preview i
-  in
-  Repo.analysis_pipeline mode transposable_elements fq1 fq2 genome
-
-let general_args spec =
+let cli_spec =
   let open Command.Spec in
-  spec
+  empty
+  +> flag "--preview-mode" (optional int) ~doc:"INT If present, only consider K million reads"
+  +> flag "--te-list" (required string) ~doc:"PATH FASTA containing elements to be tested"
+  +> flag "--genome" (required string) ~doc:"PATH_OR_ID Either a path to a FASTA file or a UCSC Genome Browser ID"
+  +> flag "--fq1" (required string) ~doc:"PATH FASTQ1 file"
+  +> flag "--fq2" (required string) ~doc:"PATH FASTQ2 file"
   +> flag "--np" (optional int) ~doc:"INT Number of available processors"
   +> flag "--mem" (optional int) ~doc:"INT Available memory (in GB)"
   +> flag "--outdir" (optional string) ~doc:"PATH Output directory"
   +> flag "--verbose" no_arg ~doc:" Log actions"
 
-let analysis_args =
-  let open Command.Spec in
-  empty
-  +> flag "--preview-mode" (optional int) ~doc:"INT If present, only consider K million reads"
-  +> flag "--te-list" (required file) ~doc:"PATH FASTA containing elements to be tested"
-  +> flag "--fq1" (required file) ~doc:"PATH FASTQ (left reads)"
-  +> flag "--fq2" (required file) ~doc:"PATH FASTQ (right reads)"
-  +> flag "--genome" (required string) ~doc:"PATH_OR_ID Either a path to a FASTA file or a UCSC Genome Browser ID"
-  |> general_args
-
 let command =
   let open Command in
-  group ~summary:"Transposable Element Insertion Detector" [
-    "run", Command.basic ~summary:"Run detection pipeline" analysis_args analysis_mode ;
-  ]
-
-
-(* let bed_of_aligned_reads (sam : sam workflow) : bed3 workflow = *)
-(*   workflow ~descr:"bed_of_aligned_reads" [ *)
-(*     cmd "bed_of_aligned_reads.native" [ *)
-(*       opt "--sam" dep sam ; *)
-(*       opt "--output" ident dest ; *)
-(*     ] *)
-(*   ] *)
-
-(* let te_positions_one_way fq1 fq2 = *)
-(*   let sam1 = Bowtie2.bowtie2 ~mode:`local ltr_index (`single_end [fq1]) in *)
-(*   let filtered2 = filter_fastq_with_sam sam1 fq2 in *)
-(*   let sam2 = Bowtie2.bowtie2 ~mode:`local genome_index (`single_end [filtered2]) in *)
-(*   bed_of_aligned_reads sam2 *)
-
-(* let te_positions fq1 fq2 = *)
-(*   cat [ *)
-(*     te_positions_one_way fq1 fq2 ; *)
-(*     te_positions_one_way fq2 fq1 ; *)
-(*   ] *)
-
-
-(* let te_counts_one_way fq1 fq2 = *)
-(*   let sam1 = Bowtie2.bowtie2 ~mode:`local ltr_index (`single_end [fq1]) in *)
-(*   let filtered2 = filter_fastq_with_sam sam1 fq2 in *)
-(*   let sam2 = Bowtie2.bowtie2 ~mode:`local genome_index (`single_end [filtered2]) in *)
-(*   Htseq.count ~stranded:`no ~idattribute:"gene" (`sam sam2) mel_gff *)
+  Command.basic ~summary:"Run detection pipeline" cli_spec main
