@@ -6,8 +6,11 @@ Install instructions are the same than for the [bistro library](https://github.c
 ```
 opam pin add -y te-insertion-detector https://github.com/pveber/te-insertion-detector.git
 ```
-A `te-insertion-detector` should now be available.
+A `te-insertion-detector` program should now be available.
 
 ## Usage
 
-Type `te-insertion-detector --help` to get a description of command-line options
+Type `te-insertion-detector --help` to get a description of command-line options. A typical invocation should look like this:
+```sh
+$ te-insertion-detector pipeline --fq1 reads_1.fq.gz --fq2 reads_2.fq.gz --genome droSim1 --te-list TEs.fa --mem 8 --np 8 --outdir results
+```
