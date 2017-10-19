@@ -106,12 +106,15 @@ type transposable_element = { id : string ; sequence : string }
 
 let load_transposable_elements fn =
   Fasta.(
-    with_file fn ~f:(fun _ items ->
-        Stream.map items ~f:(fun it ->
-            { id = it.description ; sequence = it.sequence }
-          )
-        |> Stream.to_list
-      )
+    with_file
+      ~fmt:{ default_fmt with allow_empty_lines = true }
+      fn
+      ~f:(fun _ items ->
+          Stream.map items ~f:(fun it ->
+              { id = it.description ; sequence = it.sequence }
+            )
+          |> Stream.to_list
+        )
   )
 
 module Pipeline = struct
