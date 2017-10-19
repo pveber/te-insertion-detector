@@ -8,21 +8,11 @@ bug-reports: "https://github.com/pveber/te-insertion-detector/issues"
 license: "GPL3"
 dev-repo: "https://github.com/pveber/te-insertion-detector.git"
 
-build: [
-  [make "native"]
-]
-
-install: [
-  [make "META"]
-  [make "%{name}%.install"]
-]
-
-remove: ["ocamlfind" "remove" "te-insertion-detector"]
+build: ["jbuilder" "build" "-p" name "-j" jobs]
 
 depends: [
   "biocaml"   {= "dev"}
   "bistro"    {= "dev"}
   "pipes"     {= "dev"}
   "ocamlfind" {build}
-  "solvuu-build" {build}
 ]
