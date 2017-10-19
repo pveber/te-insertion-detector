@@ -13,6 +13,8 @@ build: ["jbuilder" "build" "-p" name "-j" jobs]
 depends: [
   "biocaml"   {= "dev"}
   "bistro"    {= "dev"}
-  "pipes"     {= "dev"}
   "ocamlfind" {build}
+  "pipes"     {= "dev"}
+  "ppx_deriving"
+  "ppx_sexp_conv"
 ]
