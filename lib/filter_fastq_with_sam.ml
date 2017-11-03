@@ -3,7 +3,7 @@ open Biocaml_ez
 open CFStream
 
 let chop s =
-  String.sub s 0 (String.length s - 2)
+  String.sub s ~pos:0 ~len:(String.length s - 2)
 
 let idset_of_sam sam_path =
   In_channel.with_file sam_path ~f:(fun ic ->
@@ -19,19 +19,20 @@ let idset_of_sam sam_path =
       set
     )
 
-let filter_fastq set ic oc =
+let filter_fastq pred set ic oc =
   Fastq.read ic
   |> Stream.filter ~f:(fun it ->
       let name = chop it.Biocaml_unix.Fastq.name in
-      Hash_set.mem set name
+      pred (Hash_set.mem set) name
     )
   |> Fastq.write oc
 
-let main sam_path fq_path out_path () =
+let main invert sam_path fq_path out_path () =
   let idset = idset_of_sam sam_path in
+  let pred = if invert then Fn.non else Fn.id in
   Out_channel.with_file out_path ~f:(fun oc ->
       In_channel.with_file fq_path ~f:(fun ic ->
-          filter_fastq idset ic oc
+          filter_fastq pred idset ic oc
         )
     )
 
@@ -39,6 +40,7 @@ let command =
   let spec =
     let open Command.Spec in
     empty
+    +> flag "--invert" no_arg            ~doc:" Invert output (reads that are not in SAM)"
     +> flag "--sam" (required file)      ~doc:"PATH Aligned reads (SAM)"
     +> flag "--fastq" (required file)    ~doc:"PATH Unaligned reads (FASTQ)"
     +> flag "--output" (required string) ~doc:"PATH Path where to write FASTQ output"

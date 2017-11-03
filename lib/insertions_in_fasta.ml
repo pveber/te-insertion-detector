@@ -26,11 +26,11 @@ let perform_insertions_aux te_seq inserts it =
   let positions = List.Assoc.find_exn ~equal:String.( = ) inserts it.Fasta.description in
   let sequence =
     List.fold_right positions ~init:it.Fasta.sequence ~f:(fun p seq ->
-        String.sub seq 0 p
+        String.sub seq ~pos:0 ~len:p
         ^
         te_seq
         ^
-        String.(sub seq p (length seq - p))
+        String.(sub seq ~pos:p ~len:(length seq - p))
         )
   in
   it.Fasta.description, sequence

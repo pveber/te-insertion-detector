@@ -1,6 +1,4 @@
 open Core
-open Biocaml_ez
-open CFStream
 open Pipes_unix
 
 let ok_exn = function
@@ -25,7 +23,7 @@ module V = struct
     | Left p -> p
     | Right q -> q
 
-  let id_of_peak { Macs2.Xls.chr ; start ; end_ } =
+  let id_of_peak { Macs2.Xls.chr ; start ; end_ ; _ } =
     sprintf "%s:%d-%d" chr start end_
 
   let tag = function
@@ -75,7 +73,7 @@ module Neato = Graph.Graphviz.Neato(
 
 (* MACS2 outputs spurious peaks that are several MB long. Here we keep
    only peaks that are no longer than 2 kb *)
-let filter_peak { Macs2.Xls.length } =
+let filter_peak { Macs2.Xls.length ; _ } =
   length < 2000
 
 let line_reader = Pipe.loop Lines.Parser.step Lines.Parser.initial_state

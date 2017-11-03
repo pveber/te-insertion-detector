@@ -655,7 +655,7 @@ type transposable_element =
 
 let show_transposable_element = function
   | Known_TE te -> show_known_transposable_element te
-  | User_TE { id } -> id
+  | User_TE { id ; _ } -> id
 
 let load_transposable_elements fn =
   Fasta.(
@@ -850,7 +850,7 @@ module Repo = struct
     let f te =
       let sim = Pipeline.simulation te in
       let p x = ["simulation" ; show_transposable_element te ; x ] in
-      Bistro_repo.[
+      Repo.[
         p "genome" %> sim#genome ;
         p "positions_1X"   %> sim#tep 1. ;
         p "positions_10X"  %> sim#tep 10. ;
@@ -865,7 +865,7 @@ module Repo = struct
   let detection_pipeline_for_te mode te x =
     let tep = Pipeline.te_positions mode te x in
     let p u = root mode (show_transposable_element te :: show_sample x :: u) in
-    Bistro_repo.[
+    Repo.[
       p[ "te_positions" ] %> tep#insertions ;
       p[ "witness_reads1" ] %> tep#way1#witness_reads ;
       p[ "witness_reads2" ] %> tep#way2#witness_reads ;
@@ -877,14 +877,14 @@ module Repo = struct
       detection_pipeline_for_te mode te G0
       @ detection_pipeline_for_te mode te G1
       @
-      Bistro_repo.[
+      Repo.[
         root mode (show_transposable_element te :: [ "comparison" ]) %> comparison
       ]
     in
     repo, Pipeline.stats_of_comparison comparison
 
   let analysis_pipeline mode transposable_elements =
-    let open Bistro_repo in
+    let open Repo in
     let repos, stats =
       List.map transposable_elements ~f:(analysis_pipeline_for_te mode)
       |> List.unzip
@@ -894,19 +894,20 @@ module Repo = struct
 
 end
 
-let main np mem outdir verbose f =
+let main np mem outdir _ f =
   let logger =
-    Bistro_logger.tee
-      (Bistro_console_logger.create ())
-      (Bistro_html_logger.create "report.html")
+    Logger.tee [
+      Console_logger.create () ;
+      Html_logger.create "report.html" ;
+    ]
   in
   let outdir = Option.value outdir ~default:"res" in
   let np = Option.value ~default:4 np in
   let mem = Option.value ~default:4 mem in
   let repo = f () in
-  Bistro_repo.(build ~logger ~np ~mem:(`GB mem) ~outdir repo)
+  Bistro_utils.Repo.(build ~logger ~np ~mem:(`GB mem) ~outdir repo)
 
-let analysis_mode preview_mode te_list genome np mem outdir verbose () =
+let analysis_mode preview_mode te_list _ np mem outdir verbose () =
   main np mem outdir verbose @@ fun () ->
   let transposable_elements = load_transposable_elements te_list in
   let mode = match preview_mode with

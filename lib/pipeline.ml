@@ -29,12 +29,13 @@ let gzdest =
     string ")" ;
   ]
 
-let filter_fastq_with_sam (sam : sam workflow) (fq : 'a fastq gz workflow) : 'a fastq gz workflow =
+let filter_fastq_with_sam ?invert (sam : sam workflow) (fq : 'a fastq gz workflow) : 'a fastq gz workflow =
   workflow ~descr:"filter_fastq_with_sam" [
     cmd "bash" [
       file_dump (seq ~sep:" " [
           string "te-insertion-detector" ;
           string "filter-fastq-with-sam" ;
+          option (flag string "-v") invert ;
           opt "--sam" dep sam ;
           opt "--fastq" gzdep fq ;
           opt "--output" ident gzdest ;
@@ -128,13 +129,19 @@ module Pipeline = struct
 
 
   let witness_reads_one_way ~te_index ~genome_index fq1 fq2 =
-    let sam1 = bowtie2 te_index (`single_end [fq1]) in
-    let filtered2 = filter_fastq_with_sam sam1 fq2 in
-    let witness_reads = bowtie2 genome_index (`single_end [filtered2]) in
+    let anchor_reads = bowtie2 te_index (`single_end [fq1]) in
+    let filtered_reads = filter_fastq_with_sam anchor_reads fq2 in
+    let filtered_reads_not_in_te =
+      filter_fastq_with_sam
+        ~invert:true
+        (bowtie2 te_index (`single_end [filtered_reads]))
+        filtered_reads
+    in
+    let witness_reads = bowtie2 genome_index (`single_end [filtered_reads_not_in_te]) in
     object
       method witness_reads = witness_reads
-      method filtered_reads = filtered2
-      method anchor_reads = sam1
+      method filtered_reads = filtered_reads
+      method anchor_reads = anchor_reads
     end
 
   (* this is because of a bug in macs2 #101 *)
@@ -195,7 +202,7 @@ fi
     let fq1 = fastq_gz mode fq1 in
     let fq2 = fastq_gz mode fq2 in
     let genome_index = Bowtie2.bowtie2_build (fetch_genome genome) in
-    List.map te_list ~f:(fun ({ id } as te) ->
+    List.map te_list ~f:(fun te ->
         te_positions ~te ~genome_index fq1 fq2
       )
 end
@@ -207,12 +214,11 @@ module Repo = struct
     | `preview i -> [ "preview" ; sprintf "%03d" i ] @ path
 
   let analysis_pipeline mode transposable_elements ~fq1 ~fq2 ~genome =
-    let open Bistro_repo in
     let results = Pipeline.detection mode transposable_elements fq1 fq2 genome in
     let repos =
-      List.map2_exn transposable_elements results ~f:(fun { id } tep ->
+      List.map2_exn transposable_elements results ~f:(fun { id ; _ } tep ->
           let p u = root mode (id :: u) in
-          Bistro_repo.[
+          Repo.[
             p[ "te_positions" ] %> tep#insertions ;
             p[ "witness_reads1" ] %> tep#way1#witness_reads ;
             p[ "witness_reads2" ] %> tep#way2#witness_reads ;
@@ -223,11 +229,12 @@ module Repo = struct
 
 end
 
-let main preview_mode te_list fq1 fq2 genome np mem outdir verbose () =
+let main preview_mode te_list fq1 fq2 genome np mem outdir _ () =
   let logger =
-    Bistro_logger.tee
-      (Bistro_console_logger.create ())
-      (Bistro_html_logger.create "report.html")
+    Logger.tee [
+      Console_logger.create () ;
+      Html_logger.create "report.html" ;
+    ]
   in
   let outdir = Option.value outdir ~default:"res" in
   let np = Option.value ~default:4 np in
@@ -240,7 +247,7 @@ let main preview_mode te_list fq1 fq2 genome np mem outdir verbose () =
     in
     Repo.analysis_pipeline mode transposable_elements ~fq1 ~fq2 ~genome
   in
-  Bistro_repo.(build ~logger ~np ~mem:(`GB mem) ~outdir repo)
+  Bistro_utils.Repo.(build ~logger ~np ~mem:(`GB mem) ~outdir repo)
 
 let cli_spec =
   let open Command.Spec in
@@ -256,5 +263,4 @@ let cli_spec =
   +> flag "--verbose" no_arg ~doc:" Log actions"
 
 let command =
-  let open Command in
   Command.basic ~summary:"Run detection pipeline" cli_spec main

@@ -1,4 +1,3 @@
-open Core
 open Bistro.Std
 open Bistro_bioinfo.Std
 open Bistro.EDSL
