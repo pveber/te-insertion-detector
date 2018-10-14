@@ -148,7 +148,7 @@ let compare_edges (p1, q1) (p2, q2) =
   | d -> d
 
 let ordered_edges g =
-  List.sort ~cmp:compare_edges (G.edges g)
+  List.sort ~compare:compare_edges (G.edges g)
 
 let compare_alignment_rows r1 r2 =
   match r1, r2 with
@@ -177,7 +177,7 @@ let alignment g =
   let edges = List.map (G.edges g) ~f:(fun x -> `Edge x) in
   let singletons = List.map (G.singletons g) ~f:(fun x -> `Singleton x) in
   let rows = edges @ singletons in
-  List.sort ~cmp:compare_alignment_rows rows
+  List.sort ~compare:compare_alignment_rows rows
 
 let output_ordered_edges oc xs =
   let open Macs2.Xls in
@@ -222,14 +222,11 @@ let main macs_xls1 macs_xls2 out_path () =
   generate_dot_repr out_path g
 
 let command =
-  let spec =
-    let open Command.Spec in
-    empty
-    +> anon ("BED1" %: file)
-    +> anon ("BED2" %: file)
-    +> flag "--output" (required file) ~doc:"PATH Path where to write the matching"
-  in
+  let open Command.Let_syntax in
   Command.basic
     ~summary:"Match detected insertions"
-    spec
-    main
+    [%map_open
+      let bed1 = anon ("BED1" %: file)
+      and bed2 = anon ("BED2" %: file)
+      and output = flag "--output" (required file) ~doc:"PATH Path where to write the matching" in
+      main bed1 bed2 output]

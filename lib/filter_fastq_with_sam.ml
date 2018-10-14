@@ -27,25 +27,23 @@ let filter_fastq pred set ic oc =
     )
   |> Fastq.write oc
 
-let main invert sam_path fq_path out_path () =
-  let idset = idset_of_sam sam_path in
+let main ~invert ~sam ~fq ~output () =
+  let idset = idset_of_sam sam in
   let pred = if invert then Fn.non else Fn.id in
-  Out_channel.with_file out_path ~f:(fun oc ->
-      In_channel.with_file fq_path ~f:(fun ic ->
+  Out_channel.with_file output ~f:(fun oc ->
+      In_channel.with_file fq ~f:(fun ic ->
           filter_fastq pred idset ic oc
         )
     )
 
 let command =
-  let spec =
-    let open Command.Spec in
-    empty
-    +> flag "--invert" no_arg            ~doc:" Invert output (reads that are not in SAM)"
-    +> flag "--sam" (required file)      ~doc:"PATH Aligned reads (SAM)"
-    +> flag "--fastq" (required file)    ~doc:"PATH Unaligned reads (FASTQ)"
-    +> flag "--output" (required string) ~doc:"PATH Path where to write FASTQ output"
-  in
+  let open Command.Let_syntax in
   Command.basic
     ~summary:"Filter a FASTQ keeping only those having one fragment aligned in SAM"
-    spec
-    main
+    [%map_open
+      let invert = flag "--invert" no_arg            ~doc:" Invert output (reads that are not in SAM)"
+      and sam = flag "--sam" (required file)      ~doc:"PATH Aligned reads (SAM)"
+      and fq = flag "--fastq" (required file)    ~doc:"PATH Unaligned reads (FASTQ)"
+      and output = flag "--output" (required string) ~doc:"PATH Path where to write FASTQ output"
+      in
+      main ~invert ~sam ~fq ~output]

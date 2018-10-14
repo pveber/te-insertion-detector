@@ -929,20 +929,20 @@ let general_args spec =
   +> flag "--outdir" (optional string) ~doc:"PATH Output directory"
   +> flag "--verbose" no_arg ~doc:" Log actions"
 
-let analysis_args =
-  let open Command.Spec in
-  empty
-  +> flag "--preview-mode" (optional int) ~doc:"INT If present, only consider K million reads"
-  +> flag "--te-list" (required string) ~doc:"PATH FASTA containing elements to be tested"
-  +> flag "--genome" (required string) ~doc:"PATH_OR_ID Either a path to a FASTA file or a UCSC Genome Browser ID"
-  |> general_args
+(* let analysis_args = *)
+(*   let open Command.Spec in *)
+(*   empty *)
+(*   +> flag "--preview-mode" (optional int) ~doc:"INT If present, only consider K million reads" *)
+(*   +> flag "--te-list" (required string) ~doc:"PATH FASTA containing elements to be tested" *)
+(*   +> flag "--genome" (required string) ~doc:"PATH_OR_ID Either a path to a FASTA file or a UCSC Genome Browser ID" *)
+(*   |> general_args *)
 
-let command =
-  let open Command in
-  group ~summary:"Transposable Element Insertion Detector" [
-    "run", Command.basic ~summary:"Run detection pipeline" analysis_args analysis_mode ;
-    "simulation", Command.basic ~summary:"Validation pipeline" (general_args Command.Spec.empty) simulation_mode ;
-  ]
+(* let command = *)
+(*   let open Command in *)
+(*   group ~summary:"Transposable Element Insertion Detector" [ *)
+(*     "run", Command.basic ~summary:"Run detection pipeline" analysis_args analysis_mode ; *)
+(*     "simulation", Command.basic ~summary:"Validation pipeline" (general_args Command.Spec.empty) simulation_mode ; *)
+(*   ] *)
 
 
 (* let bed_of_aligned_reads (sam : sam workflow) : bed3 workflow = *)

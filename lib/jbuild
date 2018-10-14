@@ -4,5 +4,6 @@
  ((name te_insertion_detector)
   (public_name te-insertion-detector)
   (libraries (biocaml.ez bistro.bioinfo bistro.utils cfstream pipes.unix))
-  (preprocess (pps (ppx_deriving.std ppx_sexp_conv bistro.ppx)))
+  (flags (:standard -unsafe-string))
+  (preprocess (pps (ppx_deriving.std ppx_sexp_conv bistro.ppx ppx_let)))
 ))

@@ -25,13 +25,10 @@ let main in_fa out_fa () =
     )
 
 let command =
-  let spec =
-    let open Command.Spec in
-    empty
-    +> flag "--in" (required file)      ~doc:"PATH input fasta"
-    +> flag "--out" (required file)    ~doc:"PATH output fasta"
-  in
+  let open Command.Let_syntax in
   Command.basic
     ~summary:"A small script to format a fasta file containing all known drosophila TE"
-    spec
-    main
+    [%map_open
+      let file_in  = flag "--in"  (required file) ~doc:"PATH input fasta"
+      and file_out = flag "--out" (required file) ~doc:"PATH output fasta" in
+      main file_in file_out]

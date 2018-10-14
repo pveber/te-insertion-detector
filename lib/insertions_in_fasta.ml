@@ -57,7 +57,7 @@ let write_insert_positions inserts out_path =
         )
     )
 
-let main te_path genome_path out_path () =
+let main ~te:te_path ~genome:genome_path ~output:out_path () =
   let te_seq =
     Fasta.(
       let fmt = { default_fmt with allow_empty_lines = true } in
@@ -73,14 +73,12 @@ let main te_path genome_path out_path () =
   write_insert_positions inserts (Filename.concat out_path "inserts.bed")
 
 let command =
-  let spec =
-    let open Command.Spec in
-    empty
-    +> flag "--te" (required file) ~doc:"PATH Transposable element (FASTA)"
-    +> flag "--genome" (required file) ~doc:"PATH Genome file (FASTA)"
-    +> flag "--output" (required file) ~doc:"PATH Path where to write the modified genome"
-  in
+  let open Command.Let_syntax in
   Command.basic
     ~summary:"Add insertions of a TE in a genome"
-    spec
-    main
+    [%map_open
+      let te = flag "--te" (required file) ~doc:"PATH Transposable element (FASTA)"
+      and genome = flag "--genome" (required file) ~doc:"PATH Genome file (FASTA)"
+      and output = flag "--output" (required file) ~doc:"PATH Path where to write the modified genome"
+      in
+      main ~te ~genome ~output]
