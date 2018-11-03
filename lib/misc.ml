@@ -102,9 +102,6 @@ let bowtie2 (index : Bowtie2.index workflow) fqs =
     ]
   ]
 
-
-type transposable_element = { id : string ; sequence : string }
-
 let load_transposable_elements fn =
   Fasta.(
     with_file
@@ -112,13 +109,13 @@ let load_transposable_elements fn =
       fn
       ~f:(fun _ items ->
           Stream.map items ~f:(fun it ->
-              { id = it.description ; sequence = it.sequence }
+              { Te_library.id = it.description ; sequence = it.sequence }
             )
           |> Stream.to_list
         )
   )
 
-let fasta_of_te { id ; sequence } =
+let fasta_of_te { Te_library.id ; sequence } =
   workflow ~descr:("echo." ^ id) [
     cmd "echo" ~stdout:dest [ quote ~using:'"' (string (">" ^ id ^ "\\n"  ^ sequence)) ] ;
   ]
