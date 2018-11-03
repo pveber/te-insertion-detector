@@ -34,7 +34,7 @@ let filter_fastq_with_sam ?invert (sam : sam workflow) (fq : 'a fastq gz workflo
       file_dump (seq ~sep:" " [
           string "te-insertion-detector" ;
           string "filter-fastq-with-sam" ;
-          option (flag string "-v") invert ;
+          option (flag string "--invert") invert ;
           opt "--sam" dep sam ;
           opt "--fastq" gzdep fq ;
           opt "--output" ident gzdest ;

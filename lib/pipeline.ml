@@ -4,11 +4,10 @@ open Bistro_bioinfo.Std
 open Bistro_utils
 open Misc
 
-module Pipeline = struct
+module Detection = struct
   open Bistro.EDSL
 
   let index_of_te te = Bowtie2.bowtie2_build (fasta_of_te te)
-
 
   let witness_reads_one_way ~te_index ~genome_index fq1 fq2 =
     let anchor_reads = bowtie2 te_index (`single_end [fq1]) in
@@ -68,13 +67,58 @@ module Pipeline = struct
 end
 
 
+module Simulation = struct
+  open Bistro.EDSL
+
+  (* Sequencing simulation using Art *)
+  let sequencer cov fa =
+    let ao =
+      Art.(
+        art_illumina
+          ~aln_output:False
+          ~sam_output:False
+          ~errfree_sam_output:False
+          (Paired_end { len = 150 ;
+                        mflen = 400. ;
+                        sdev = 20. ;
+                        matepair = false })
+          (`Coverage_fold cov) fa
+      )
+    in
+    (ao / Art.pe_fastq `One,
+     ao / Art.pe_fastq `Two)
+
+  let insertions_in_fasta ~te ~genome : [`genome_with_insertions] directory workflow =
+    workflow ~descr:"insertions_in_fasta" [
+      cmd "te-insertion-detector" [
+        string "insertions-in-fasta" ;
+        opt "--te" dep te ;
+        opt "--genome" dep genome ;
+        opt "--output" ident dest ;
+      ]
+    ]
+
+  let genome_of_insertions_in_fasta
+    : ([`genome_with_insertions], fasta) selector
+    = selector ["genome.fa"]
+
+  let simulation te genome =
+    let simulated_genome = insertions_in_fasta ~te:(fasta_of_te te) ~genome in
+    object
+      method genome = simulated_genome
+      method tep n =
+        let fq1, fq2 = sequencer n (simulated_genome / genome_of_insertions_in_fasta) in
+        (Detection.te_positions ~te ~genome_index:(Detection.index_of_te te) (gzip fq1) (gzip fq2))#insertions
+    end
+end
+
 module Repo = struct
   let root mode path = match mode with
     | `full -> path
     | `preview i -> [ "preview" ; sprintf "%03d" i ] @ path
 
   let analysis_pipeline mode transposable_elements ~fq1 ~fq2 ~genome =
-    let results = Pipeline.detection mode transposable_elements fq1 fq2 genome in
+    let results = Detection.detection mode transposable_elements fq1 fq2 genome in
     let repos =
       List.map2_exn transposable_elements results ~f:(fun { id ; _ } tep ->
           let p u = root mode (id :: u) in
@@ -89,7 +133,7 @@ module Repo = struct
 
 end
 
-let main ~preview_mode ~te_list ~fq1 ~fq2 ~genome ~np ~mem ~outdir ~verbose:_ () =
+let detection ~preview_mode ~te_list ~fq1 ~fq2 ~genome ~np ~mem ~outdir ~verbose:_ () =
   let logger =
     Logger.tee [
       Console_logger.create () ;
@@ -109,7 +153,7 @@ let main ~preview_mode ~te_list ~fq1 ~fq2 ~genome ~np ~mem ~outdir ~verbose:_ ()
   in
   Bistro_utils.Repo.(build ~logger ~np ~mem:(`GB mem) ~outdir repo)
 
-let command =
+let detection_command =
   let open Command.Let_syntax in
   Command.basic
     ~summary:"Run detection pipeline"
@@ -123,5 +167,38 @@ let command =
       and mem = flag "--mem" (optional int) ~doc:"INT Available memory (in GB)"
       and outdir = flag "--outdir" (optional string) ~doc:"PATH Output directory"
       and verbose = flag "--verbose" no_arg ~doc:" Log actions" in
-      main ~preview_mode ~te_list ~fq1 ~fq2 ~genome ~np ~mem ~outdir ~verbose
+      detection ~preview_mode ~te_list ~fq1 ~fq2 ~genome ~np ~mem ~outdir ~verbose
+    ]
+
+
+let simulation_main ~te ~genome ~np ~mem ~outdir ~verbose:_ () =
+  let logger =
+    Logger.tee [
+      Console_logger.create () ;
+      Html_logger.create "report.html" ;
+    ]
+  in
+  let outdir = Option.value outdir ~default:"res" in
+  let np = Option.value ~default:4 np in
+  let mem = Option.value ~default:4 mem in
+  let repo =
+    let te = Te_library.(fasta_of_te (te_of_string te)) in
+    let simul = Simulation.simulation te genome in
+    []
+  in
+  Bistro_utils.Repo.(build ~logger ~np ~mem:(`GB mem) ~outdir repo)
+
+let simulation_command =
+  let open Command.Let_syntax in
+  Command.basic
+    ~summary:"Run simulation pipeline"
+    [%map_open
+      let preview_mode = flag "--preview-mode" (optional int) ~doc:"INT If present, only consider K million reads"
+      and te = flag "--te" (required string) ~doc:"STRING Name of element to be tested"
+      and genome = flag "--genome" (required string) ~doc:"PATH_OR_ID Either a path to a FASTA file or a UCSC Genome Browser ID"
+      and np = flag "--np" (optional int) ~doc:"INT Number of available processors"
+      and mem = flag "--mem" (optional int) ~doc:"INT Available memory (in GB)"
+      and outdir = flag "--outdir" (optional string) ~doc:"PATH Output directory"
+      and verbose = flag "--verbose" no_arg ~doc:" Log actions" in
+      simulation_main ~te ~genome ~np ~mem ~outdir ~verbose
     ]
