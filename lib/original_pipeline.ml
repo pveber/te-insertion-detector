@@ -10,7 +10,6 @@ open Bistro_bioinfo.Std
 open Bistro.EDSL
 open Bistro_utils
 open Biocaml_ez
-open Te_library
 
 (* === CUSTOM WRAPPERS === *)
 
@@ -116,17 +115,12 @@ type sample = G0 | G1
 
 let samples = [ G0 ; G1 ]
 
-type known_transposable_element = LTR412 | IDEFIX | STALKER2 | ZAM | GTWIN | CIRCE | DM176 | FW | I_DM | JOCKEY
-[@@deriving show]
-
-let known_transposable_elements = [ LTR412 ; IDEFIX ; STALKER2 ; ZAM ; GTWIN ; CIRCE ; DM176 ; FW ; I_DM ; JOCKEY]
-
 type transposable_element =
-  | Known_TE of known_transposable_element
+  | Known_TE of Te_library.te
   | User_TE of { id : string ; sequence : string }
 
 let show_transposable_element = function
-  | Known_TE te -> show_known_transposable_element te
+  | Known_TE te -> Te_library.show_te te
   | User_TE { id ; _ } -> id
 
 let load_transposable_elements fn =
@@ -152,20 +146,8 @@ module Pipeline = struct
     Unix_tools.wget "ftp://ftp.flybase.net/genomes/Drosophila_melanogaster/dmel_r6.11_FB2016_03/gff/dmel-all-r6.11.gff.gz"
     |> Unix_tools.gunzip
 
-  let fasta_of_known_te = function
-    | LTR412 -> ltr_412_fa
-    | IDEFIX -> ltr_idefix_fa
-    | STALKER2 -> ltr_stalker2_fa
-    | ZAM -> ltr_zam_fa
-    | GTWIN -> ltr_gtwin_fa
-    | CIRCE -> circe_fa
-    | DM176 -> dm176_fa
-    | FW -> fw_fa
-    | I_DM -> i_dm_fa
-    | JOCKEY -> jockey_fa
-
   let fasta_of_te = function
-    | Known_TE te -> fasta_of_known_te te
+    | Known_TE te -> Misc.fasta_of_te (Te_library.fasta_of_te te)
     | User_TE { id ; sequence } ->
       workflow ~descr:("echo." ^ id) [
         cmd "echo" ~stdout:dest [ quote ~using:'"' (string (">" ^ id ^ "\\n"  ^ sequence)) ] ;
@@ -390,7 +372,7 @@ let analysis_mode preview_mode te_list _ np mem outdir verbose () =
 
 let simulation_mode np mem outdir verbose () =
   main np mem outdir verbose @@ fun () ->
-  let te_list = List.map ~f:(fun te -> Known_TE te) known_transposable_elements in
+  let te_list = List.map ~f:(fun te -> Known_TE te) Te_library.all_of_te in
   Repo.simulation te_list
 
 let general_args spec =

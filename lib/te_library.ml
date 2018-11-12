@@ -61,6 +61,7 @@ type te =
   | Dm176
   | FW
   | I_dm
+[@@deriving show, enumerate]
 
 let te_of_string = function
   | "Jockey" -> Jockey
