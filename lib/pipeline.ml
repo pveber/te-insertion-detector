@@ -30,8 +30,9 @@ module Detection = struct
     let wr1 = witness_reads_one_way ~te_index ~genome_index fq1 fq2 in
     let wr2 = witness_reads_one_way ~te_index ~genome_index fq2 fq1 in
     let insertions =
-      (* Macs2.callpeak *) macs2
-        (* ~nomodel:true ~extsize:150 ~qvalue:0.1*) (* Macs2.sam *)
+       (* macs2 *)
+      Macs2.callpeak
+        ~nomodel:true ~extsize:150 ~qvalue:0.1 Macs2.sam
         [ wr1#witness_reads ; wr2#witness_reads ] in
     object
       method way1 = wr1
@@ -71,7 +72,7 @@ module Simulation = struct
   open Bistro.EDSL
 
   (* Sequencing simulation using Art *)
-  let sequencer cov fa =
+  let sequencer ~coverage fa =
     let ao =
       Art.(
         art_illumina
@@ -82,7 +83,7 @@ module Simulation = struct
                         mflen = 400. ;
                         sdev = 20. ;
                         matepair = false })
-          (`Coverage_fold cov) fa
+          (`Coverage_fold coverage) fa
       )
     in
     (ao / Art.pe_fastq `One,
@@ -103,12 +104,13 @@ module Simulation = struct
     = selector ["genome.fa"]
 
   let simulation te genome =
+    let genome = Detection.fetch_genome genome in
     let simulated_genome = insertions_in_fasta ~te:(fasta_of_te te) ~genome in
     object
       method genome = simulated_genome
-      method tep n =
-        let fq1, fq2 = sequencer n (simulated_genome / genome_of_insertions_in_fasta) in
-        (Detection.te_positions ~te ~genome_index:(Detection.index_of_te te) (gzip fq1) (gzip fq2))#insertions
+      method te_positions ~coverage =
+        let fq1, fq2 = sequencer ~coverage (simulated_genome / genome_of_insertions_in_fasta) in
+        (Detection.te_positions ~te ~genome_index:(Bowtie2.bowtie2_build genome) (gzip fq1) (gzip fq2))#insertions
     end
 end
 
