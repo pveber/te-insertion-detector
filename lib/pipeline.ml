@@ -30,9 +30,9 @@ module Detection = struct
     let wr1 = witness_reads_one_way ~te_index ~genome_index fq1 fq2 in
     let wr2 = witness_reads_one_way ~te_index ~genome_index fq2 fq1 in
     let insertions =
-       (* macs2 *)
-      Macs2.callpeak
-        ~nomodel:true ~extsize:150 ~qvalue:0.1 Macs2.sam
+       macs2
+      (* Macs2.callpeak *)
+      (*   ~nomodel:true ~extsize:150 ~qvalue:0.1 Macs2.sam *)
         [ wr1#witness_reads ; wr2#witness_reads ] in
     object
       method way1 = wr1
