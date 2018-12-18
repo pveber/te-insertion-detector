@@ -2,8 +2,19 @@ open Core
 open Biocaml_ez
 open CFStream
 
+let left_side x =
+  match String.lsplit2 ~on:' ' x with
+  | Some (x, _) -> x
+  | None -> x
+
 let chop s =
   String.sub s ~pos:0 ~len:(String.length s - 2)
+
+let normalize_id x =
+  let x = left_side x in
+  if String.is_suffix ~suffix:"/1" x && String.is_suffix ~suffix:"/2" x then
+    chop x
+  else x
 
 let idset_of_sam sam_path =
   In_channel.with_file sam_path ~f:(fun ic ->
@@ -12,7 +23,7 @@ let idset_of_sam sam_path =
       Stream.iter items ~f:(fun al ->
           match al.Sam.qname, al.Sam.mapq with
           | Some qname, Some mapq when mapq > 30 ->
-            let qname = chop qname in
+            let qname = normalize_id qname in
             Hash_set.add set qname
           | _ -> ()
         ) ;
@@ -22,7 +33,7 @@ let idset_of_sam sam_path =
 let filter_fastq pred set ic oc =
   Fastq.read ic
   |> Stream.filter ~f:(fun it ->
-      let name = chop it.Biocaml_unix.Fastq.name in
+      let name = normalize_id it.Biocaml_unix.Fastq.name in
       pred (Hash_set.mem set) name
     )
   |> Fastq.write oc
