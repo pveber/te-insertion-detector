@@ -103,15 +103,52 @@ module Simulation = struct
     : ([`genome_with_insertions], fasta) selector
     = selector ["genome.fa"]
 
-  let simulation te genome =
-    let genome = Detection.fetch_genome genome in
-    let simulated_genome = insertions_in_fasta ~te:(fasta_of_te te) ~genome in
+  let insertions_of_insertions_in_fasta
+    : ([`genome_with_insertions], bed3) selector
+    = selector ["inserts.bed"]
+
+  let simulation te original_genome =
+    let original_genome = Detection.fetch_genome original_genome in
+    let simulated_genome = insertions_in_fasta ~te:(fasta_of_te te) ~genome:original_genome in
+    let te_positions ~coverage genome =
+      let fq1, fq2 = sequencer ~coverage genome in
+      Detection.te_positions ~te ~genome_index:(Bowtie2.bowtie2_build genome) (gzip fq1) (gzip fq2)
+    in
     object
+      method original_genome = original_genome
       method genome = simulated_genome
       method te_positions ~coverage =
-        let fq1, fq2 = sequencer ~coverage (simulated_genome / genome_of_insertions_in_fasta) in
-        (Detection.te_positions ~te ~genome_index:(Bowtie2.bowtie2_build genome) (gzip fq1) (gzip fq2))#insertions
+        te_positions ~coverage (simulated_genome / genome_of_insertions_in_fasta)
+      method te_positions_in_original_genome ~coverage =
+        te_positions ~coverage original_genome
     end
+
+  let%bistro evaluation ~detected_insertions ~simulated_genome =
+    let detected_insertions =
+      let file = [%dep detected_insertions] in
+      Assignment_bed.Parser.(parse_bed ~file ~line_parser:parse_position)
+    in
+    let reference =
+      [%dep simulated_genome / insertions_of_insertions_in_fasta]
+      |> In_channel.read_lines
+      |> List.map ~f:(String.lsplit2_exn ~on:'\t')
+      |> List.map ~f:(fun (x, y) -> x, Int.of_string y)
+      |> List.map ~f:Assignment_bed.Position.of_tuple
+    in
+    let matching =
+      Assignment_dynamic.Dynamic.align_list
+        detected_insertions
+        reference
+        ~max_dist:10_000
+    in
+    let matches = List.filter matching ~f:(function
+          Pos _, Pos _ -> true
+        | _ -> false
+      )
+    in
+    Out_channel.with_file [%dest] ~f:(fun oc ->
+        fprintf oc "common=%d ref=%d pred=%d\n%!" (List.length matches) (List.length reference) (List.length detected_insertions)
+      )
 end
 
 module Repo = struct
@@ -137,16 +174,18 @@ module Repo = struct
 
   let simulation transposable_elements genome =
     let f te =
-      let sim = Simulation.simulation (Te_library.fasta_of_te te) genome in
+      let sim =
+        Simulation.simulation (Te_library.fasta_of_te te) genome in
       let p x = [Te_library.show_te te ; x ] in
-      Repo.[
-        p "genome" %> sim#genome ;
-        p "positions_1X"   %> sim#te_positions ~coverage:1. ;
-        p "positions_10X"  %> sim#te_positions ~coverage:10. ;
-        p "positions_30X"  %> sim#te_positions ~coverage:30. ;
-        p "positions_50X"  %> sim#te_positions ~coverage:50. ;
-        p "positions_100X" %> sim#te_positions ~coverage:100. ;
-      ]
+      let f coverage =
+        let detected_insertions = (sim#te_positions ~coverage:(Float.of_int coverage))#insertion_xls in
+        Repo.[
+          item (p (sprintf "positions_%dX.bed" coverage)) detected_insertions ;
+          item (p (sprintf "comparaison_%dX" coverage)) (Simulation.evaluation ~detected_insertions ~simulated_genome:sim#genome) ;
+        ]
+      in
+      Repo.item ["genome"] sim#genome
+      :: (List.concat @@ List.map [ 1 ; 10 ; 30 ; 50 ; 100 ] ~f)
     in
     List.map transposable_elements ~f
     |> List.concat
