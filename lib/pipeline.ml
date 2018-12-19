@@ -123,10 +123,21 @@ module Simulation = struct
         te_positions ~coverage original_genome
     end
 
+  module Pred = struct
+    type t = Assignment_bed.Position.t * float
+    let position = fst
+  end
+
+  module Position = struct
+    include Assignment_bed.Position
+    let position x = x
+  end
+
   let%bistro evaluation ~detected_insertions ~simulated_genome =
+    let module M = Assignment_dynamic.Dynamic.Make(Pred)(Position) in
     let detected_insertions =
       let file = [%dep detected_insertions] in
-      Assignment_bed.Parser.(parse_bed ~file ~line_parser:parse_position)
+      Assignment_bed.Parser.(parse_bed ~file ~line_parser:parse_position_score)
     in
     let reference =
       [%dep simulated_genome / insertions_of_insertions_in_fasta]
@@ -136,18 +147,21 @@ module Simulation = struct
       |> List.map ~f:Assignment_bed.Position.of_tuple
     in
     let matching =
-      Assignment_dynamic.Dynamic.align_list
+      M.align_list
         detected_insertions
         reference
         ~max_dist:10_000
     in
-    let matches = List.filter matching ~f:(function
-          Pos _, Pos _ -> true
-        | _ -> false
+    let res = List.map matching ~f:(function
+        | M.Match ((_, s), _) -> s, true
+        | Insertion (_, s) -> s, false
+        | Deletion _ -> 0., true
       )
     in
     Out_channel.with_file [%dest] ~f:(fun oc ->
-        fprintf oc "common=%d ref=%d pred=%d\n%!" (List.length matches) (List.length reference) (List.length detected_insertions)
+        List.iter res ~f:(fun (s, b) ->
+            fprintf oc "%b\t%f\n" b s
+          )
       )
 end
 
