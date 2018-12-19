@@ -12,7 +12,7 @@ let chop s =
 
 let normalize_id x =
   let x = left_side x in
-  if String.is_suffix ~suffix:"/1" x && String.is_suffix ~suffix:"/2" x then
+  if String.is_suffix ~suffix:"/1" x || String.is_suffix ~suffix:"/2" x then
     chop x
   else x
 

@@ -29,7 +29,7 @@ let gzdest =
   ]
 
 let filter_fastq_with_sam ?invert (sam : sam workflow) (fq : 'a fastq gz workflow) : 'a fastq gz workflow =
-  workflow ~descr:"filter_fastq_with_sam" ~version:1 [
+  workflow ~descr:"filter_fastq_with_sam" ~version:2 [
     cmd "bash" [
       file_dump (seq ~sep:" " [
           string "te-insertion-detector" ;
