@@ -1,12 +1,12 @@
 open Core
-open Bistro.Std
-open Bistro_bioinfo.Std
-open Bistro.EDSL
+open Bistro
+open Bistro_bioinfo
+open Bistro.Shell_dsl
 open CFStream
 open Biocaml_ez
 
-let fastq_gz_head (fq_gz : _ fastq gz workflow as 'a) i : 'a =
-  workflow ~descr:"fastq_gz_head" [
+let fastq_gz_head (fq_gz : #fastq gz pworkflow as 'a) i : 'a =
+  Workflow.shell ~descr:"fastq_gz_head" [
     pipe [
       cmd "zcat" [ dep fq_gz ] ;
       cmd "head" [ opt "-n" int (i * 4) ] ;
@@ -14,7 +14,7 @@ let fastq_gz_head (fq_gz : _ fastq gz workflow as 'a) i : 'a =
     ]
   ]
 
-let gzdep (gz : _ gz workflow) =
+let gzdep (gz : _ gz pworkflow) =
   seq ~sep:"" [
     string "<(gunzip -c " ;
     dep gz ;
@@ -28,8 +28,8 @@ let gzdest =
     string ")" ;
   ]
 
-let filter_fastq_with_sam ?invert (sam : sam workflow) (fq : 'a fastq gz workflow) : 'a fastq gz workflow =
-  workflow ~descr:"filter_fastq_with_sam" ~version:2 [
+let filter_fastq_with_sam ?invert (sam : sam pworkflow) (fq : (#fastq as 'a) gz pworkflow) : 'a gz pworkflow =
+  Workflow.shell ~descr:"filter_fastq_with_sam" ~version:2 [
     cmd "bash" [
       file_dump (seq ~sep:" " [
           string "te-insertion-detector" ;
@@ -43,8 +43,8 @@ let filter_fastq_with_sam ?invert (sam : sam workflow) (fq : 'a fastq gz workflo
     ]
   ]
 
-let match_insertions (peaks1 : Macs2.peaks_xls workflow) (peaks2 : Macs2.peaks_xls workflow) =
-  workflow ~descr:"match_insertions" ~version:8 [
+let match_insertions (peaks1 : Macs2.peaks_xls pworkflow) (peaks2 : Macs2.peaks_xls pworkflow) =
+  Workflow.shell ~descr:"match_insertions" ~version:8 [
     cmd "te-insertion-detector" [
       string "match-insertions" ;
       dep peaks1 ;
@@ -54,28 +54,28 @@ let match_insertions (peaks1 : Macs2.peaks_xls workflow) (peaks2 : Macs2.peaks_x
   ]
 
 let cat xs =
-  workflow ~descr:"cat" [
+  Workflow.shell ~descr:"cat" [
     cmd "cat" [
       list dep xs
     ]
   ]
 
 let gzip x =
-  workflow ~descr:"gzip" [
+  Workflow.shell ~descr:"gzip" [
     cmd "gzip" ~stdout:dest [
       string "-c" ;
       dep x
     ]
   ]
 
-let bowtie2_env = docker_image ~account:"pveber" ~name:"bowtie2" ~tag:"2.2.9" ()
-let samtools_env = docker_image ~account:"pveber" ~name:"samtools" ~tag:"1.3.1" ()
+let bowtie2_env = [ docker_image ~account:"pveber" ~name:"bowtie2" ~tag:"2.2.9" () ]
+let samtools_env = [ docker_image ~account:"pveber" ~name:"samtools" ~tag:"1.3.1" () ]
 
 (* FIXME!!!  This wrapper doesn't work as one could expect: docker
    logs everything that passes on stdout, which takes LOTS of space in
    that particular case. Either use named pipes or intermediate files...
 *)
-let bowtie2 (index : Bowtie2.index workflow) fqs =
+let bowtie2 (index : Bowtie2.index pworkflow) fqs =
   let args = match fqs with
     | `single_end fqs ->
       opt "-U" (list gzdep ~sep:",") fqs
@@ -86,15 +86,15 @@ let bowtie2 (index : Bowtie2.index workflow) fqs =
         opt "-2" (list gzdep ~sep:",") fqs2
       ]
   in
-  workflow ~descr:"te-insertion-locator-bowtie2" ~mem:(3 * 1024) ~np:8 [
+  Workflow.shell ~descr:"te-insertion-locator-bowtie2" ~mem:(Workflow.int (3 * 1024)) ~np:8 [
     pipe [
-      cmd "bowtie2" ~env:bowtie2_env [
+      cmd "bowtie2" ~img:bowtie2_env [
         string "--local" ;
         opt "--threads" ident np ;
         opt "-x" (fun index -> seq [dep index ; string "/index"]) index ;
         args ;
       ] ;
-      cmd "samtools" ~env:samtools_env ~stdout:dest [
+      cmd "samtools" ~img:samtools_env ~stdout:dest [
         string "view" ;
         string "-" ;
         opt "-q" int 5 ;
@@ -116,13 +116,13 @@ let load_transposable_elements fn =
   )
 
 let fasta_of_te { Te_library.id ; sequence } =
-  workflow ~descr:("echo." ^ id) [
+  Workflow.shell ~descr:("echo." ^ id) [
     cmd "echo" ~stdout:dest [ quote ~using:'"' (string (">" ^ id ^ "\\n"  ^ sequence)) ] ;
   ]
 
 (* this is because of a bug in macs2 #101 *)
 let macs2 treatment =
-  let env = docker_image ~account:"pveber" ~name:"macs2" ~tag:"2.1.1" () in
+  let img = [ docker_image ~account:"pveber" ~name:"macs2" ~tag:"2.1.1" () ] in
   let script =
     seq ~sep:"\n" [
       string "set -e" ;
@@ -138,6 +138,6 @@ fi
 |}
     ]
   in
-  workflow ~descr:"custom.macs2" [
-    cmd "bash" ~env [ file_dump script ]
+  Workflow.shell ~descr:"custom.macs2" [
+    cmd "bash" ~img [ file_dump script ]
   ]

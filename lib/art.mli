@@ -1,5 +1,5 @@
-open Bistro.Std
-open Bistro_bioinfo.Std
+open Bistro
+open Bistro_bioinfo
 
 type _ tbool =
   | True  : [`True] tbool
@@ -44,18 +44,17 @@ val art_illumina :
   sam_output:'c tbool ->
   'rm read_model ->
   [< `Coverage_fold of float | `Read_count of int ] ->
-  Bistro_bioinfo.Std.fasta Bistro.Std.workflow ->
+  fasta pworkflow ->
   < aln : 'a;
     errfree_sam : 'b;
     read_model : 'rm;
-    sam : 'c > art_illumina_output directory workflow
+    sam : 'c > art_illumina_output dworkflow
 
 val se_fastq :
-  unit ->
-  (< read_model : [`single_end] ; .. > art_illumina_output,
-   [`sanger] fastq) selector
+  < read_model : [`single_end] ; .. > art_illumina_output dworkflow ->
+  sanger_fastq pworkflow
 
 val pe_fastq :
+  < read_model : [`paired_end] ; .. > art_illumina_output dworkflow ->
   [`One | `Two] ->
-  (< read_model : [`paired_end] ; .. > art_illumina_output,
-   [`sanger] fastq) selector
+  sanger_fastq pworkflow

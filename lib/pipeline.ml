@@ -1,12 +1,10 @@
 open Core
-open Bistro.Std
-open Bistro_bioinfo.Std
+open Bistro
+open Bistro_bioinfo
 open Bistro_utils
 open Misc
 
 module Detection = struct
-  open Bistro.EDSL
-
   let index_of_te te = Bowtie2.bowtie2_build (fasta_of_te te)
 
   let witness_reads_one_way ~te_index ~genome_index fq1 fq2 =
@@ -38,7 +36,7 @@ module Detection = struct
       method way1 = wr1
       method way2 = wr2
       method insertions = insertions
-      method insertion_xls = insertions / Macs2.peaks_xls
+      method insertion_xls = Macs2.peaks_xls insertions
     end
 
   let fetch_genome x =
@@ -46,12 +44,12 @@ module Detection = struct
     | Some org -> Ucsc_gb.genome_sequence org
     | None ->
       if String.is_prefix ~prefix:"http://" x then
-        Unix_tools.wget x
+        Bistro_unix.wget x
       else
-        input x
+        Workflow.input x
 
-  let fastq_gz mode fn : [`sanger] fastq gz workflow =
-    let fq = input fn in
+  let fastq_gz mode fn : sanger_fastq gz pworkflow =
+    let fq = Workflow.input fn in
     match mode with
     | `preview i ->
       fastq_gz_head fq (i * 1_000_000)
@@ -69,7 +67,7 @@ end
 
 
 module Simulation = struct
-  open Bistro.EDSL
+  open Bistro.Shell_dsl
 
   (* Sequencing simulation using Art *)
   let sequencer ~coverage fa =
@@ -86,11 +84,10 @@ module Simulation = struct
           (`Coverage_fold coverage) fa
       )
     in
-    (ao / Art.pe_fastq `One,
-     ao / Art.pe_fastq `Two)
+    (Art.pe_fastq ao `One, Art.pe_fastq ao `Two)
 
-  let insertions_in_fasta ~te ~genome : [`genome_with_insertions] directory workflow =
-    workflow ~descr:"insertions_in_fasta" [
+  let insertions_in_fasta ~te ~genome : [`genome_with_insertions] dworkflow =
+    Workflow.shell ~descr:"insertions_in_fasta" [
       cmd "te-insertion-detector" [
         string "insertions-in-fasta" ;
         opt "--te" dep te ;
@@ -99,13 +96,11 @@ module Simulation = struct
       ]
     ]
 
-  let genome_of_insertions_in_fasta
-    : ([`genome_with_insertions], fasta) selector
-    = selector ["genome.fa"]
+  let genome_of_insertions_in_fasta (x : [`genome_with_insertions] dworkflow) : fasta pworkflow =
+    Workflow.select x ["genome.fa"]
 
-  let insertions_of_insertions_in_fasta
-    : ([`genome_with_insertions], bed3) selector
-    = selector ["inserts.bed"]
+  let insertions_of_insertions_in_fasta (x : [`genome_with_insertions] dworkflow) : bed3 pworkflow =
+    Workflow.select x ["inserts.bed"]
 
   let simulation te original_genome =
     let original_genome = Detection.fetch_genome original_genome in
@@ -118,7 +113,7 @@ module Simulation = struct
       method original_genome = original_genome
       method genome = simulated_genome
       method te_positions ~coverage =
-        te_positions ~coverage (simulated_genome / genome_of_insertions_in_fasta)
+        te_positions ~coverage (genome_of_insertions_in_fasta simulated_genome)
       method te_positions_in_original_genome ~coverage =
         te_positions ~coverage original_genome
     end
@@ -133,14 +128,14 @@ module Simulation = struct
     let position x = x
   end
 
-  let%bistro evaluation ~detected_insertions ~simulated_genome =
+  let%pworkflow evaluation ~detected_insertions ~simulated_genome =
     let module M = Assignment_dynamic.Dynamic.Make(Pred)(Position) in
     let detected_insertions =
-      let file = [%dep detected_insertions] in
+      let file = [%path detected_insertions] in
       Assignment_bed.Parser.(parse_bed ~file ~line_parser:parse_position_score)
     in
     let reference =
-      [%dep simulated_genome / insertions_of_insertions_in_fasta]
+      [%path insertions_of_insertions_in_fasta simulated_genome]
       |> In_channel.read_lines
       |> List.map ~f:(String.lsplit2_exn ~on:'\t')
       |> List.map ~f:(fun (x, y) -> x, Int.of_string y)
@@ -152,16 +147,26 @@ module Simulation = struct
         reference
         ~max_dist:10_000
     in
-    let res = List.map matching ~f:(function
-        | M.Match ((_, s), _) -> s, true
-        | Insertion (_, s) -> s, false
-        | Deletion _ -> 0., true
+    let tp = List.count matching ~f:(function
+        | M.Match ((_, _), _) -> true
+        | Insertion (_, _) -> false
+        | Deletion _ -> false
+      )
+    and fp = List.count matching ~f:(function
+        | M.Match ((_, _), _) -> false
+        | Insertion (_, _) -> true
+        | Deletion _ -> false
+      )
+    and fn = List.count matching ~f:(function
+        | M.Match ((_, _), _) -> false
+        | Insertion (_, _) -> false
+        | Deletion _ -> true
       )
     in
-    Out_channel.with_file [%dest] ~f:(fun oc ->
-        List.iter res ~f:(fun (s, b) ->
-            fprintf oc "%b\t%f\n" b s
-          )
+    Out_channel.with_file [%dest] ~f:Pervasives.(fun oc ->
+        fprintf oc "prec=%f\trecall=%f\n"
+          (float tp /. (float tp +. float fp))
+          (float tp /. (float tp +. float fn))
       )
 end
 
@@ -206,11 +211,10 @@ module Repo = struct
 end
 
 let detection ~preview_mode ~te_list ~fq1 ~fq2 ~genome ~np ~mem ~outdir ~verbose:_ () =
-  let logger =
-    Logger.tee [
-      Console_logger.create () ;
-      Html_logger.create "report.html" ;
-    ]
+  let loggers = [
+    Console_logger.create () ;
+    Html_logger.create "report.html" ;
+  ]
   in
   let outdir = Option.value outdir ~default:"res" in
   let np = Option.value ~default:4 np in
@@ -223,7 +227,7 @@ let detection ~preview_mode ~te_list ~fq1 ~fq2 ~genome ~np ~mem ~outdir ~verbose
     in
     Repo.analysis_pipeline mode transposable_elements ~fq1 ~fq2 ~genome
   in
-  Bistro_utils.Repo.(build ~logger ~np ~mem:(`GB mem) ~outdir repo)
+  Bistro_utils.Repo.(build_main ~loggers ~np ~mem:(`GB mem) ~outdir repo)
 
 let detection_command =
   let open Command.Let_syntax in
@@ -244,8 +248,7 @@ let detection_command =
 
 
 let simulation_main ~genome ~np ~mem ~outdir ~verbose:_ () =
-  let logger =
-    Logger.tee [
+  let loggers = [
       Console_logger.create () ;
       Html_logger.create "report.html" ;
     ]
@@ -254,7 +257,7 @@ let simulation_main ~genome ~np ~mem ~outdir ~verbose:_ () =
   let np = Option.value ~default:4 np in
   let mem = Option.value ~default:4 mem in
   let repo = Repo.simulation Te_library.all_of_te genome in
-  Bistro_utils.Repo.(build ~logger ~np ~mem:(`GB mem) ~outdir repo)
+  Bistro_utils.Repo.(build_main ~loggers ~np ~mem:(`GB mem) ~outdir repo)
 
 let simulation_command =
   let open Command.Let_syntax in
