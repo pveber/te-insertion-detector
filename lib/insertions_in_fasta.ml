@@ -52,7 +52,7 @@ let write_insert_positions inserts out_path =
   Out_channel.with_file out_path ~f:(fun oc ->
       List.iter inserts ~f:(fun (chr, pos) ->
           List.iter pos ~f:(fun p ->
-              fprintf oc "%s\t%d\n" chr p
+              fprintf oc "%s\t%d\t%d\n" chr p p
             )
         )
     )
