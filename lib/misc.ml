@@ -97,7 +97,7 @@ let bowtie2 (index : Bowtie2.index pworkflow) fqs =
       cmd "samtools" ~img:samtools_env ~stdout:dest [
         string "view" ;
         string "-" ;
-        opt "-q" int 5 ;
+        opt "-q" int 30 ;
       ] ;
     ]
   ]
