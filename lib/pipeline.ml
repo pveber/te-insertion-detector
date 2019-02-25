@@ -136,36 +136,56 @@ module Simulation = struct
     let reference =
       [%path insertions_of_insertions_in_fasta simulated_genome]
       |> In_channel.read_lines
-      |> List.map ~f:(String.lsplit2_exn ~on:'\t')
-      |> List.map ~f:(fun (x, y) -> x, Int.of_string y)
+      |> List.map ~f:(String.split ~on:'\t')
+      |> List.map ~f:(function
+          | [ x ; y ; _ ] -> x, Int.of_string y
+          | _ -> assert false
+        )
       |> List.map ~f:Assignment_bed.Position.of_tuple
     in
-    let matching =
-      M.align_list
-        detected_insertions
-        reference
-        ~max_dist:10_000
+    let scores =
+      List.map detected_insertions ~f:snd
+      |> List.dedup_and_sort ~compare:Float.compare
     in
-    let tp = List.count matching ~f:(function
-        | M.Match ((_, _), _) -> true
-        | Insertion (_, _) -> false
-        | Deletion _ -> false
-      )
-    and fp = List.count matching ~f:(function
-        | M.Match ((_, _), _) -> false
-        | Insertion (_, _) -> true
-        | Deletion _ -> false
-      )
-    and fn = List.count matching ~f:(function
-        | M.Match ((_, _), _) -> false
-        | Insertion (_, _) -> false
-        | Deletion _ -> true
+    let eval theta =
+      let detected_insertions = List.filter detected_insertions ~f:(fun (_, x) -> x > theta) in
+      let matching =
+        M.align_list
+          detected_insertions
+          reference
+          ~max_dist:10_000
+      in
+      let tp = List.count matching ~f:(function
+          | M.Match ((_, _), _) -> true
+          | Insertion (_, _) -> false
+          | Deletion _ -> false
+        )
+      and fp = List.count matching ~f:(function
+          | M.Match ((_, _), _) -> false
+          | Insertion (_, _) -> true
+          | Deletion _ -> false
+        )
+      and fn = List.count matching ~f:(function
+          | M.Match ((_, _), _) -> false
+          | Insertion (_, _) -> false
+          | Deletion _ -> true
+        )
+      in
+      let open Pervasives in
+      let prec = float tp /. (float tp +. float fp) in
+      let recall = float tp /. (float tp +. float fn) in
+      recall, prec
+    in
+    let res = List.map scores ~f:(fun s ->
+        let r, p = eval s in
+        s, r, p
       )
     in
-    Out_channel.with_file [%dest] ~f:Pervasives.(fun oc ->
-        fprintf oc "prec=%f\trecall=%f\n"
-          (float tp /. (float tp +. float fp))
-          (float tp /. (float tp +. float fn))
+    Out_channel.with_file [%dest] ~f:(fun oc ->
+        fprintf oc "score\trecall\tprecision\n" ;
+        List.iter res ~f:(fun (s, r, p) ->
+            fprintf oc "%f\t%f\t%f\n" s r p
+          )
       )
 end
 
@@ -255,7 +275,7 @@ let simulation_main ~genome ~np ~mem ~outdir ~verbose:_ () =
   let outdir = Option.value outdir ~default:"res" in
   let np = Option.value ~default:4 np in
   let mem = Option.value ~default:4 mem in
-  let repo = Repo.simulation Te_library.all_of_te genome in
+  let repo = Repo.simulation (List.take Te_library.all_of_te 3) genome in
   Bistro_utils.Repo.(build_main ~loggers ~np ~mem:(`GB mem) ~outdir repo)
 
 let simulation_command =
