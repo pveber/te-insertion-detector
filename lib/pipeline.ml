@@ -65,7 +65,6 @@ module Detection = struct
       )
 end
 
-
 module Simulation = struct
   open Bistro.Shell_dsl
 
