@@ -39,16 +39,16 @@ module Detection = struct
                     | None, _ | _, None -> acc
                     | Some g_qname, Some et_qname ->
                       let g_id, et_id = Filter_fastq_with_sam.(normalize_id g_qname, normalize_id et_qname) in
-                      match String.compare g_id et_id with
-                      | -1 -> Stream.junk genome_als ; loop acc
-                      |  1 -> Stream.junk et_als ; loop acc
-                      | 0 -> (
-                          match read_of_al genome_header g_al, read_of_al et_header et_al with
-                          | Some genome_read, Some et_read ->
-                            loop ({ genome_read ; et_read } :: acc)
-                          | _ -> loop acc
-                        )
-                      | _ -> assert false
+                      if g_id = et_id then (
+                        match read_of_al genome_header g_al, read_of_al et_header et_al with
+                        | Some genome_read, Some et_read ->
+                          Stream.junk genome_als ;
+                          Stream.junk et_als ;
+                          loop ({ genome_read ; et_read } :: acc)
+                        | _ -> loop acc
+                      )
+                      else if g_id < et_id then (Stream.junk genome_als ; loop acc)
+                      else (Stream.junk et_als ; loop acc)
                   )
               in
               loop []
@@ -89,7 +89,7 @@ let simulation_main ~genome ~np ~mem ~outdir ~verbose:_ () =
   let mapped_reads index fq =
     Bowtie2.bowtie2 ~no_unal:true index (`single_end [fq])
     |> Samtools.bam_of_sam
-    |> Samtools.sort ~on:`name
+    |> Picardtools.sort_bam_by_name
   in
   let genome_reads1 = mapped_reads genome_index fq1 in
   let genome_reads2 = mapped_reads genome_index fq2 in
