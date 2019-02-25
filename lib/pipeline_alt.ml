@@ -17,6 +17,9 @@ module Detection = struct
     }
   [@@deriving sexp]
 
+  let loc_of_read { chr ; pos ; seq ; _ } =
+    Gzt.GLoc.{ chr ; lo = pos ; hi = pos + String.length seq }
+
   let%workflow detect_frontier_pairs ~genome_reads1 ~genome_reads2 ~et_reads1 ~et_reads2 =
     let open Biocaml_ez in
     let open CFStream in
@@ -64,6 +67,36 @@ module Detection = struct
         |> [%sexp_of: frontier_pair list]
         |> Sexp.output_hum oc
       )
+
+  let%pworkflow mapq_hypothesis frontier_pairs insertions =
+    let insertions = Gzt.Bed.Bed3.load_as_lmap [%path insertions] in
+    let pairs = [%eval frontier_pairs] in
+    let mapq =
+      List.map pairs ~f:(fun { genome_read ; _ } ->
+          genome_read.mapq
+        )
+      |> Array.of_list
+      |> OCamlR_base.Integer.of_array
+    in
+    let close_to_insertion =
+      List.map pairs ~f:(fun { genome_read ; _ } ->
+          match Gzt.GAnnot.LMap.closest insertions (loc_of_read genome_read) with
+          | None -> false
+          | Some (_, _, d) -> Int.abs d < 1_000
+        )
+      |> Array.of_list
+      |> OCamlR_base.Logical.of_array
+    in
+    let df = OCamlR_base.Dataframe.(create [
+        integer "mapq" mapq ;
+        logical "close" close_to_insertion ;
+      ])
+    in
+    OCamlR_grDevices.pdf [%dest] ;
+    OCamlR_graphics.dataframe_boxplot
+      (OCamlR_stats.Formula.of_string "mapq ~ close")
+      df ;
+    OCamlR_grDevices.dev_off ()
 end
 
 
@@ -98,6 +131,7 @@ let simulation_main ~genome ~np ~mem ~outdir ~verbose:_ () =
   let frontier_pairs = Detection.detect_frontier_pairs ~genome_reads1 ~et_reads1 ~genome_reads2 ~et_reads2 in
   let repo = Repo.[
       item ["frontier_reads"] (Detection.dump_frontier_pairs frontier_pairs) ;
+      item ["mapq_hyp.pdf"] (Detection.mapq_hypothesis frontier_pairs (Pipeline.Simulation.insertions_of_insertions_in_fasta simulated_genome))
     ]
   in
   Bistro_utils.Repo.(build_main ~loggers ~np ~mem:(`GB mem) ~outdir repo)
