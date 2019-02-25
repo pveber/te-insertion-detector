@@ -85,15 +85,19 @@ module Detection = struct
           | Some (_, _, d) -> Int.abs d < 1_000
         )
       |> Array.of_list
-      |> OCamlR_base.Logical.of_array
     in
-    let df = OCamlR_base.Dataframe.(create [
+    let df =
+      let open OCamlR_base in
+      Dataframe.(create [
         integer "mapq" mapq ;
-        logical "close" close_to_insertion ;
+        logical "close" (Logical.of_array close_to_insertion) ;
       ])
     in
+    let ntrue = Array.count close_to_insertion ~f:Fn.id in
+    let nfalse = Array.count close_to_insertion ~f:Fn.(non id) in
     OCamlR_grDevices.pdf [%dest] ;
     OCamlR_graphics.dataframe_boxplot
+      ~main:(sprintf "F = %d / T = %d" nfalse ntrue)
       (OCamlR_stats.Formula.of_string "mapq ~ close")
       df ;
     OCamlR_grDevices.dev_off ()
