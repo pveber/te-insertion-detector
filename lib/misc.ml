@@ -28,20 +28,27 @@ let gzdest =
     string ")" ;
   ]
 
-let filter_fastq_with_sam ?invert (sam : sam pworkflow) (fq : (#fastq as 'a) gz pworkflow) : 'a gz pworkflow =
+let filter_fastq_with_sam_gen fq_dep sam_dest ?invert ?min_mapq (sam : sam pworkflow) fq =
   Workflow.shell ~descr:"filter_fastq_with_sam" ~version:2 [
     cmd "bash" [
       file_dump (seq ~sep:" " [
           string "te-insertion-detector" ;
           string "filter-fastq-with-sam" ;
           option (flag string "--invert") invert ;
+          option (opt "--min-mapq" int) min_mapq ;
           opt "--sam" dep sam ;
-          opt "--fastq" gzdep fq ;
-          opt "--output" ident gzdest ;
+          opt "--fastq" fq_dep fq ;
+          opt "--output" ident sam_dest ;
         ] ;
         )
     ]
   ]
+
+let filter_fastq_with_sam ?invert ?min_mapq sam (fq : (sanger_fastq as 'a) pworkflow) : 'a pworkflow =
+  filter_fastq_with_sam_gen dep dest ?invert ?min_mapq sam fq
+
+let filter_fastq_with_sam_gz ?invert ?min_mapq sam (fq : (sanger_fastq as 'a) gz pworkflow) : 'a gz pworkflow =
+  filter_fastq_with_sam_gen gzdep gzdest ?invert ?min_mapq sam fq
 
 let match_insertions (peaks1 : Macs2.peaks_xls pworkflow) (peaks2 : Macs2.peaks_xls pworkflow) =
   Workflow.shell ~descr:"match_insertions" ~version:8 [
@@ -75,7 +82,7 @@ let samtools_env = [ docker_image ~account:"pveber" ~name:"samtools" ~tag:"1.3.1
    logs everything that passes on stdout, which takes LOTS of space in
    that particular case. Either use named pipes or intermediate files...
 *)
-let bowtie2 (index : Bowtie2.index pworkflow) fqs =
+let bowtie2 ~min_mapq (index : Bowtie2.index pworkflow) fqs =
   let args = match fqs with
     | `single_end fqs ->
       opt "-U" (list gzdep ~sep:",") fqs
@@ -97,7 +104,7 @@ let bowtie2 (index : Bowtie2.index pworkflow) fqs =
       cmd "samtools" ~img:samtools_env ~stdout:dest [
         string "view" ;
         string "-" ;
-        opt "-q" int 30 ;
+        opt "-q" int min_mapq ;
       ] ;
     ]
   ]

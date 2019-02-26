@@ -8,15 +8,15 @@ module Detection = struct
   let index_of_te te = Bowtie2.bowtie2_build (fasta_of_te te)
 
   let witness_reads_one_way ~te_index ~genome_index fq1 fq2 =
-    let anchor_reads = bowtie2 te_index (`single_end [fq1]) in
-    let filtered_reads = filter_fastq_with_sam anchor_reads fq2 in
+    let anchor_reads = bowtie2 ~min_mapq:30 te_index (`single_end [fq1]) in
+    let filtered_reads = filter_fastq_with_sam_gz anchor_reads fq2 in
     let filtered_reads_not_in_te =
-      filter_fastq_with_sam
+      filter_fastq_with_sam_gz
         ~invert:true
-        (bowtie2 te_index (`single_end [filtered_reads]))
+        (bowtie2 ~min_mapq:30 te_index (`single_end [filtered_reads]))
         filtered_reads
     in
-    let witness_reads = bowtie2 genome_index (`single_end [filtered_reads_not_in_te]) in
+    let witness_reads = bowtie2 genome_index ~min_mapq:30 (`single_end [filtered_reads_not_in_te]) in
     object
       method witness_reads = witness_reads
       method filtered_reads = filtered_reads

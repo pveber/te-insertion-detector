@@ -16,13 +16,13 @@ let normalize_id x =
     chop x
   else x
 
-let idset_of_sam sam_path =
+let idset_of_sam min_mapq sam_path =
   In_channel.with_file sam_path ~f:(fun ic ->
       let set = String.Hash_set.create () in
       Sam.read ic |> fun (_, items) ->
       Stream.iter items ~f:(fun al ->
           match al.Sam.qname, al.Sam.mapq with
-          | Some qname, Some mapq when mapq > 30 ->
+          | Some qname, Some mapq when mapq >= min_mapq ->
             let qname = normalize_id qname in
             Hash_set.add set qname
           | _ -> ()
@@ -38,8 +38,8 @@ let filter_fastq pred set ic oc =
     )
   |> Fastq.write oc
 
-let main ~invert ~sam ~fq ~output () =
-  let idset = idset_of_sam sam in
+let main ~invert ~sam ~min_mapq ~fq ~output () =
+  let idset = idset_of_sam min_mapq sam in
   let pred = if invert then Fn.non else Fn.id in
   Out_channel.with_file output ~f:(fun oc ->
       In_channel.with_file fq ~f:(fun ic ->
@@ -54,7 +54,8 @@ let command =
     [%map_open
       let invert = flag "--invert" no_arg            ~doc:" Invert output (reads that are not in SAM)"
       and sam = flag "--sam" (required file)      ~doc:"PATH Aligned reads (SAM)"
+      and min_mapq = flag "--min-mapq" (optional_with_default 30 int) ~doc:"INT MAPQ threshold to consider read in SAM"
       and fq = flag "--fastq" (required file)    ~doc:"PATH Unaligned reads (FASTQ)"
       and output = flag "--output" (required string) ~doc:"PATH Path where to write FASTQ output"
       in
-      main ~invert ~sam ~fq ~output]
+      main ~min_mapq ~invert ~sam ~fq ~output]
