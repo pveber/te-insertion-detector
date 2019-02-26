@@ -61,6 +61,38 @@ module Detection = struct
     (frontier_pairs ~genome_reads:[%path genome_reads1] ~et_reads:[%path et_reads2])
     @ (frontier_pairs ~genome_reads:[%path genome_reads2] ~et_reads:[%path et_reads1])
 
+  let%workflow frontier_pair_peak_detection pairs =
+    let sorted_pairs =
+      List.filter_map [%eval pairs] ~f:(fun { genome_read ; _ } ->
+          if genome_read.mapq > 30 then
+            Some (loc_of_read genome_read, genome_read)
+          else None
+        )
+      |> List.sort ~compare:(fun (x, _) (y, _) -> Gzt.GLoc.compare x y)
+    in
+    let groups =
+      List.group sorted_pairs ~break:(fun (x, _) (y, _) ->
+          Option.value_map (Gzt.GLoc.dist x y) ~default:true ~f:(( < ) 100)
+        )
+    in
+    List.map groups ~f:(fun xs ->
+        let locs, reads = List.unzip xs in
+        let loc =
+          List.reduce_exn locs ~f:Gzt.(fun l1 l2 ->
+              let r = Range.convex_hull (GLoc.range l1) (GLoc.range l2) in
+              { chr = l1.chr ; lo = r.lo ; hi = r.hi }
+            )
+        in
+        loc, reads
+      )
+
+  let%pworkflow dump_frontier_pair_peak_detection groups =
+    Out_channel.with_file [%dest] ~f:(fun oc ->
+        List.iter [%eval groups] ~f:(fun ((loc : Gzt.GLoc.t), reads) ->
+            fprintf oc "%s\t%d\t%d\t%d\n" loc.chr loc.lo loc.hi (List.length reads)
+          )
+      )
+
   let%pworkflow dump_frontier_pairs xs =
     Out_channel.with_file [%dest] ~f:(fun oc ->
         [%eval xs]
@@ -152,6 +184,7 @@ let simulation_main ~genome ~np ~mem ~outdir ~verbose:_ () =
       item ["simulated_reads_2.fq"] fq2 ;
       item ["filtered_reads_1.fq"] filtered_fq1 ;
       item ["filtered_reads_2.fq"] filtered_fq2 ;
+      item ["detected_insertions.bed"] Detection.(dump_frontier_pair_peak_detection (frontier_pair_peak_detection frontier_pairs)) ;
     ]
   in
   Bistro_utils.Repo.(build_main ~loggers ~np ~mem:(`GB mem) ~outdir repo)
