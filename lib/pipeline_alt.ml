@@ -118,22 +118,40 @@ let simulation_main ~genome ~np ~mem ~outdir ~verbose:_ () =
   let original_genome = Pipeline.Detection.fetch_genome genome in
   let simulated_genome = Pipeline.Simulation.insertions_in_fasta ~te ~genome:original_genome in
   let simulated_genome_fa = Pipeline.Simulation.genome_of_insertions_in_fasta simulated_genome in
+  let insertion_bed = Pipeline.Simulation.insertions_of_insertions_in_fasta simulated_genome in
   let fq1, fq2 = Pipeline.Simulation.sequencer ~coverage:10. simulated_genome_fa in
   let genome_index = Bowtie2.bowtie2_build original_genome in
   let te_index = Bowtie2.bowtie2_build te in
+  let genome_mapped_pairs =
+    Bowtie2.bowtie2 ~no_unal:true ~no_discordant:true ~no_mixed:true genome_index (`paired_end ([fq1], [fq2])) in
+  let filtered_fq1, filtered_fq2 =
+    let filter x =
+      Misc.filter_fastq_with_sam ~min_mapq:1 ~invert:true genome_mapped_pairs x
+    in
+    filter fq1, filter fq2
+  in
   let mapped_reads index fq =
     Bowtie2.bowtie2 ~no_unal:true index (`single_end [fq])
     |> Samtools.bam_of_sam
     |> Picardtools.sort_bam_by_name
   in
-  let genome_reads1 = mapped_reads genome_index fq1 in
-  let genome_reads2 = mapped_reads genome_index fq2 in
-  let et_reads1 = mapped_reads te_index fq1 in
-  let et_reads2 = mapped_reads te_index fq2 in
+  let genome_reads1 = mapped_reads genome_index filtered_fq1 in
+  let genome_reads2 = mapped_reads genome_index filtered_fq2 in
+  let et_reads1 = mapped_reads te_index filtered_fq1 in
+  let et_reads2 = mapped_reads te_index filtered_fq2 in
   let frontier_pairs = Detection.detect_frontier_pairs ~genome_reads1 ~et_reads1 ~genome_reads2 ~et_reads2 in
   let repo = Repo.[
       item ["frontier_reads"] (Detection.dump_frontier_pairs frontier_pairs) ;
-      item ["mapq_hyp.pdf"] (Detection.mapq_hypothesis frontier_pairs (Pipeline.Simulation.insertions_of_insertions_in_fasta simulated_genome))
+      item ["mapq_hyp.pdf"] (Detection.mapq_hypothesis frontier_pairs insertion_bed) ;
+      item ["insertions.bed"] insertion_bed ;
+      item ["mapped_reads"] (Samtools.indexed_bam_of_sam (Bowtie2.(bowtie2 (bowtie2_build simulated_genome_fa) (`paired_end ([fq1], [fq2]))))) ;
+      item ["mapped_on_original.sam"] genome_mapped_pairs ;
+      item ["original.fa"] original_genome ;
+      item ["simulated_genome.fa"] simulated_genome_fa ;
+      item ["simulated_reads_1.fq"] fq1 ;
+      item ["simulated_reads_2.fq"] fq2 ;
+      item ["filtered_reads_1.fq"] filtered_fq1 ;
+      item ["filtered_reads_2.fq"] filtered_fq2 ;
     ]
   in
   Bistro_utils.Repo.(build_main ~loggers ~np ~mem:(`GB mem) ~outdir repo)
