@@ -23,7 +23,10 @@ let random_positions chr_size =
   List.map chr_size ~f:foreach
 
 let perform_insertions_aux te_seq inserts it =
-  let positions = List.Assoc.find_exn ~equal:String.( = ) inserts it.Fasta.description in
+  let positions =
+    List.Assoc.find_exn ~equal:String.( = ) inserts it.Fasta.description
+    |> List.sort ~compare:Int.compare
+  in
   let sequence =
     List.fold_right positions ~init:it.Fasta.sequence ~f:(fun p seq ->
         String.sub seq ~pos:0 ~len:p

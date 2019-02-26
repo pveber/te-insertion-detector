@@ -86,7 +86,7 @@ module Simulation = struct
     (Art.pe_fastq ao `One, Art.pe_fastq ao `Two)
 
   let insertions_in_fasta ~te ~genome : [`genome_with_insertions] dworkflow =
-    Workflow.shell ~descr:"insertions_in_fasta" ~version:2 [
+    Workflow.shell ~descr:"insertions_in_fasta" ~version:3 [
       cmd "te-insertion-detector" [
         string "insertions-in-fasta" ;
         opt "--te" dep te ;
