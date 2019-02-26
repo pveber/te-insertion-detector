@@ -93,6 +93,79 @@ module Detection = struct
           )
       )
 
+    module Pred = struct
+    type t = Assignment_bed.Position.t * float
+    let position = fst
+  end
+
+  module Position = struct
+    include Assignment_bed.Position
+    let position x = x
+  end
+
+  let%pworkflow evaluation ~detected_insertions ~simulated_genome =
+    let module M = Assignment_dynamic.Dynamic.Make(Pred)(Position) in
+    let detected_insertions =
+      List.map [%eval detected_insertions] ~f:(fun (loc, reads) ->
+          Position.{ chrom = loc.chr ; position = Gzt.GLoc.(loc.lo + loc.hi) / 2 },
+          Float.of_int (List.length reads)
+        )
+    in
+    let reference =
+      [%path Pipeline.Simulation.insertions_of_insertions_in_fasta simulated_genome]
+      |> In_channel.read_lines
+      |> List.map ~f:(String.split ~on:'\t')
+      |> List.map ~f:(function
+          | [ x ; y ; _ ] -> x, Int.of_string y
+          | _ -> assert false
+        )
+      |> List.map ~f:Assignment_bed.Position.of_tuple
+    in
+    let scores =
+      List.map detected_insertions ~f:snd
+      |> List.dedup_and_sort ~compare:Float.compare
+    in
+    let eval theta =
+      let detected_insertions = List.filter detected_insertions ~f:(fun (_, x) -> x > theta) in
+      let matching =
+        M.align_list
+          detected_insertions
+          reference
+          ~max_dist:10_000
+      in
+      let tp = List.count matching ~f:(function
+          | M.Match ((_, _), _) -> true
+          | Insertion (_, _) -> false
+          | Deletion _ -> false
+        )
+      and fp = List.count matching ~f:(function
+          | M.Match ((_, _), _) -> false
+          | Insertion (_, _) -> true
+          | Deletion _ -> false
+        )
+      and fn = List.count matching ~f:(function
+          | M.Match ((_, _), _) -> false
+          | Insertion (_, _) -> false
+          | Deletion _ -> true
+        )
+      in
+      let open Pervasives in
+      let prec = float tp /. (float tp +. float fp) in
+      let recall = float tp /. (float tp +. float fn) in
+      recall, prec
+    in
+    let res = List.map scores ~f:(fun s ->
+        let r, p = eval s in
+        s, r, p
+      )
+    in
+    Out_channel.with_file [%dest] ~f:(fun oc ->
+        fprintf oc "score\trecall\tprecision\n" ;
+        List.iter res ~f:(fun (s, r, p) ->
+            fprintf oc "%f\t%f\t%f\n" s r p
+          )
+      )
+
   let%pworkflow dump_frontier_pairs xs =
     Out_channel.with_file [%dest] ~f:(fun oc ->
         [%eval xs]
@@ -163,7 +236,7 @@ let simulation_main ~genome ~np ~mem ~outdir ~verbose:_ () =
     filter fq1, filter fq2
   in
   let mapped_reads index fq =
-    Bowtie2.bowtie2 ~no_unal:true index (`single_end [fq])
+    Bowtie2.bowtie2 ~mode:`local ~no_unal:true index (`single_end [fq])
     |> Samtools.bam_of_sam
     |> Picardtools.sort_bam_by_name
   in
@@ -185,6 +258,7 @@ let simulation_main ~genome ~np ~mem ~outdir ~verbose:_ () =
       item ["filtered_reads_1.fq"] filtered_fq1 ;
       item ["filtered_reads_2.fq"] filtered_fq2 ;
       item ["detected_insertions.bed"] Detection.(dump_frontier_pair_peak_detection (frontier_pair_peak_detection frontier_pairs)) ;
+      item ["evaluation.tsv"] Detection.(evaluation ~detected_insertions:(frontier_pair_peak_detection frontier_pairs) ~simulated_genome) ;
     ]
   in
   Bistro_utils.Repo.(build_main ~loggers ~np ~mem:(`GB mem) ~outdir repo)
