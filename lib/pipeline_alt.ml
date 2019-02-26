@@ -111,8 +111,6 @@ let simulation_main ~genome ~np ~mem ~outdir ~verbose:_ () =
     ]
   in
   let outdir = Option.value outdir ~default:"res" in
-  let np = Option.value ~default:4 np in
-  let mem = Option.value ~default:4 mem in
   let te =
     Te_library.idefix
     |> Misc.fasta_of_te
@@ -147,8 +145,8 @@ let simulation_command =
     ~summary:"Run simulation pipeline"
     [%map_open
       let genome = flag "--genome" (required string) ~doc:"PATH_OR_ID Either a path to a FASTA file or a UCSC Genome Browser ID"
-      and np = flag "--np" (optional int) ~doc:"INT Number of available processors"
-      and mem = flag "--mem" (optional int) ~doc:"INT Available memory (in GB)"
+      and np = flag "--np" (optional_with_default 8 int) ~doc:"INT Number of available processors"
+      and mem = flag "--mem" (optional_with_default 8 int) ~doc:"INT Available memory (in GB)"
       and outdir = flag "--outdir" (optional string) ~doc:"PATH Output directory"
       and verbose = flag "--verbose" no_arg ~doc:" Log actions" in
       simulation_main ~genome ~np ~mem ~outdir ~verbose
