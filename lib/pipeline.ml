@@ -229,43 +229,6 @@ module Repo = struct
     |> List.concat
 end
 
-let detection ~preview_mode ~te_list ~fq1 ~fq2 ~genome ~np ~mem ~outdir ~verbose:_ () =
-  let loggers = [
-    Console_logger.create () ;
-    Html_logger.create "report.html" ;
-  ]
-  in
-  let outdir = Option.value outdir ~default:"res" in
-  let np = Option.value ~default:4 np in
-  let mem = Option.value ~default:4 mem in
-  let repo =
-    let transposable_elements = load_transposable_elements te_list in
-    let mode = match preview_mode with
-      | None -> `full
-      | Some i -> `preview i
-    in
-    Repo.analysis_pipeline mode transposable_elements ~fq1 ~fq2 ~genome
-  in
-  Bistro_utils.Repo.(build_main ~loggers ~np ~mem:(`GB mem) ~outdir repo)
-
-let detection_command =
-  let open Command.Let_syntax in
-  Command.basic
-    ~summary:"Run detection pipeline"
-    [%map_open
-      let preview_mode = flag "--preview-mode" (optional int) ~doc:"INT If present, only consider K million reads"
-      and te_list = flag "--te-list" (required string) ~doc:"PATH FASTA containing elements to be tested"
-      and genome = flag "--genome" (required string) ~doc:"PATH_OR_ID Either a path to a FASTA file or a UCSC Genome Browser ID"
-      and fq1 = flag "--fq1" (required string) ~doc:"PATH FASTQ1 file"
-      and fq2 = flag "--fq2" (required string) ~doc:"PATH FASTQ2 file"
-      and np = flag "--np" (optional int) ~doc:"INT Number of available processors"
-      and mem = flag "--mem" (optional int) ~doc:"INT Available memory (in GB)"
-      and outdir = flag "--outdir" (optional string) ~doc:"PATH Output directory"
-      and verbose = flag "--verbose" no_arg ~doc:" Log actions" in
-      detection ~preview_mode ~te_list ~fq1 ~fq2 ~genome ~np ~mem ~outdir ~verbose
-    ]
-
-
 let simulation_main ~genome ~np ~mem ~outdir ~verbose:_ () =
   let loggers = [
       Console_logger.create () ;

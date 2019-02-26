@@ -206,6 +206,59 @@ module Detection = struct
       (OCamlR_stats.Formula.of_string "mapq ~ close")
       df ;
     OCamlR_grDevices.dev_off ()
+
+  let pipeline_for_te ~genome_index ~fq1 ~fq2 te =
+    let te_index = Bowtie2.bowtie2_build (Misc.fasta_of_te te) in
+    let mapped_reads index fq =
+      Bowtie2.bowtie2 ~mode:`local ~no_unal:true index (`single_end [fq])
+      |> Samtools.bam_of_sam
+      |> Picardtools.sort_bam_by_name
+    in
+    let genome_reads1 = mapped_reads genome_index fq1 in
+    let genome_reads2 = mapped_reads genome_index fq2 in
+    let et_reads1 = mapped_reads te_index fq1 in
+    let et_reads2 = mapped_reads te_index fq2 in
+    let frontier_pairs =
+      detect_frontier_pairs ~genome_reads1 ~et_reads1 ~genome_reads2 ~et_reads2
+    in
+    let detected_inserts_bed = dump_frontier_pair_peak_detection (frontier_pair_peak_detection frontier_pairs) in
+    object
+      method te_index = te_index
+      method frontier_pairs = frontier_pairs
+      method detected_inserts_bed = detected_inserts_bed
+      method repo = Repo.[
+        item ["detected_inserts.bed"] detected_inserts_bed ;
+      ]
+    end
+
+  let pipeline mode transposable_elements ~fq1 ~fq2 ~genome =
+    let fq1, fq2 =
+      Pipeline.Detection.fastq_gz mode fq1,
+      Pipeline.Detection.fastq_gz mode fq2 in
+    let genome = Bistro.Workflow.input genome in
+    let genome_index = Bowtie2.bowtie2_build genome in
+    let genome_mapped_pairs =
+      Bowtie2.bowtie2
+        ~no_unal:true ~no_discordant:true ~no_mixed:true
+        genome_index
+        (`paired_end ([fq1], [fq2])) in
+    let filtered_fq1, filtered_fq2 =
+      let filter x =
+        Misc.filter_fastq_with_sam_gz ~min_mapq:1 ~invert:true genome_mapped_pairs x
+      in
+      filter fq1, filter fq2
+    in
+    let res_by_te =
+      let f te =
+        te, pipeline_for_te ~genome_index ~fq1:filtered_fq1 ~fq2:filtered_fq2 te
+      in
+      List.map transposable_elements ~f in
+    object
+      method res_by_te = res_by_te
+      method repo =
+        List.map res_by_te ~f:(fun (te, x) -> Repo.shift te.Te_library.id x#repo)
+        |> List.concat
+    end
 end
 
 
@@ -217,7 +270,7 @@ let simulation_main ~genome ~np ~mem ~outdir ~verbose:_ () =
   in
   let outdir = Option.value outdir ~default:"res" in
   let te =
-    Te_library.idefix
+    Te_library.jockey
     |> Misc.fasta_of_te
   in
   let original_genome = Pipeline.Detection.fetch_genome genome in
@@ -275,4 +328,38 @@ let simulation_command =
       and outdir = flag "--outdir" (optional string) ~doc:"PATH Output directory"
       and verbose = flag "--verbose" no_arg ~doc:" Log actions" in
       simulation_main ~genome ~np ~mem ~outdir ~verbose
+    ]
+
+let detection ~preview_mode ~te_list ~fq1 ~fq2 ~genome ~np ~mem ~outdir ~verbose:_ () =
+  let loggers = [
+    Console_logger.create () ;
+    Html_logger.create "report.html" ;
+  ]
+  in
+  let outdir = Option.value outdir ~default:"res" in
+  let res =
+    let transposable_elements = Misc.load_transposable_elements te_list in
+    let mode = match preview_mode with
+      | None -> `full
+      | Some i -> `preview i
+    in
+    Detection.pipeline mode transposable_elements ~fq1 ~fq2 ~genome
+  in
+  Bistro_utils.Repo.(build_main ~loggers ~np ~mem:(`GB mem) ~outdir res#repo)
+
+let detection_command =
+  let open Command.Let_syntax in
+  Command.basic
+    ~summary:"Run detection pipeline"
+    [%map_open
+      let preview_mode = flag "--preview-mode" (optional int) ~doc:"INT If present, only consider K million reads"
+      and te_list = flag "--te-list" (required string) ~doc:"PATH FASTA containing elements to be tested"
+      and genome = flag "--genome" (required string) ~doc:"PATH_OR_ID Either a path to a FASTA file or a UCSC Genome Browser ID"
+      and fq1 = flag "--fq1" (required file) ~doc:"PATH FASTQ1 file"
+      and fq2 = flag "--fq2" (required file) ~doc:"PATH FASTQ2 file"
+      and np = flag "--np" (optional_with_default 8 int) ~doc:"INT Number of available processors"
+      and mem = flag "--mem" (optional_with_default 8 int) ~doc:"INT Available memory (in GB)"
+      and outdir = flag "--outdir" (optional string) ~doc:"PATH Output directory"
+      and verbose = flag "--verbose" no_arg ~doc:" Log actions" in
+      detection ~preview_mode ~te_list ~fq1 ~fq2 ~genome ~np ~mem ~outdir ~verbose
     ]

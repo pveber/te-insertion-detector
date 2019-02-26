@@ -3,7 +3,7 @@ open Te_insertion_detector
 
 let () = Command.(
     group ~summary:"Transposable Element Insertion Detector" [
-      "detection", Pipeline.detection_command ;
+      "detection", Pipeline_alt.detection_command ;
       "simulation", Pipeline.simulation_command ;
       "simu2", Pipeline_alt.simulation_command ;
       "filter-fastq-with-sam", Filter_fastq_with_sam.command ;
