@@ -207,6 +207,52 @@ module Detection = struct
       df ;
     OCamlR_grDevices.dev_off ()
 
+  let%pworkflow count_table ~gtf detected_inserts =
+    let detected_inserts =
+      [%eval Bistro.Workflow.list detected_inserts]
+      |> List.map ~f:(List.map ~f:fst)
+      |> List.concat
+    in
+    let gtf = Gzt.Gtf.load [%path gtf] in
+    let annotation = Gzt.Gtf.Annotation.of_items gtf in
+    let genes, _ = Gzt.Gtf.Annotation.genes annotation in
+    let exons = String.Table.map genes ~f:Gzt.Gene.exons in
+    let introns = String.Table.map genes ~f:Gzt.Gene.introns in
+    let utr3' = Gzt.Gtf.Annotation.utr3' annotation in
+    let utr5' = Gzt.Gtf.Annotation.utr5' annotation in
+    let counts = String.Table.mapi genes ~f:(fun ~key:id ~data:_ ->
+        let exons = String.Table.find_exn exons id in
+        let introns = String.Table.find_exn introns id in
+        let exon_count =
+          List.count detected_inserts ~f:(fun i -> List.exists exons ~f:(Gzt.GLoc.intersects i))
+        in
+        let intron_count =
+          List.count detected_inserts ~f:(fun i -> List.exists introns ~f:(Gzt.GLoc.intersects i))
+        in
+        let utr3'_count =
+          Option.value_map (String.Table.find utr3' id) ~default:0 ~f:(fun utr3' ->
+              let utr3'_loc = Gzt.Gff.Record.loc utr3' in
+              List.count detected_inserts ~f:(fun i -> Gzt.GLoc.intersects i utr3'_loc)
+            )
+        in
+        let utr5'_count =
+          Option.value_map (String.Table.find utr5' id) ~default:0 ~f:(fun utr5' ->
+              let utr5'_loc = Gzt.Gff.Record.loc utr5' in
+              List.count detected_inserts ~f:(fun i -> Gzt.GLoc.intersects i utr5'_loc)
+            )
+        in
+        [ exon_count ; intron_count ; utr5'_count ; utr3'_count ]
+      )
+    in
+    Out_channel.with_file [%dest] ~f:(fun oc ->
+        fprintf oc "id\texon\tintron\t5UTR\t3UTR\n" ;
+        String.Table.iteri counts ~f:(fun ~key:id ~data:counts ->
+            Out_channel.output_string oc id ;
+            List.iter counts ~f:(fprintf oc "\t%d") ;
+            Out_channel.newline oc
+          ) ;
+      )
+
   let pipeline_for_te ~genome_index ~fq1 ~fq2 te =
     let te_index = Bowtie2.bowtie2_build (Misc.fasta_of_te te) in
     let mapped_reads index fq =
@@ -221,21 +267,22 @@ module Detection = struct
     let frontier_pairs =
       detect_frontier_pairs ~genome_reads1 ~et_reads1 ~genome_reads2 ~et_reads2
     in
-    let detected_inserts_bed = dump_frontier_pair_peak_detection (frontier_pair_peak_detection frontier_pairs) in
+    let detected_inserts = frontier_pair_peak_detection frontier_pairs in
+    let detected_inserts_bed = dump_frontier_pair_peak_detection detected_inserts in
     object
       method te_index = te_index
       method frontier_pairs = frontier_pairs
+      method detected_inserts = detected_inserts
       method detected_inserts_bed = detected_inserts_bed
       method repo = Repo.[
         item ["detected_inserts.bed"] detected_inserts_bed ;
       ]
     end
 
-  let pipeline mode transposable_elements ~fq1 ~fq2 ~genome =
+  let pipeline mode transposable_elements ~fq1 ~fq2 ~gtf ~genome =
     let fq1, fq2 =
       Pipeline.Detection.fastq_gz mode fq1,
       Pipeline.Detection.fastq_gz mode fq2 in
-    let genome = Bistro.Workflow.input genome in
     let genome_index = Bowtie2.bowtie2_build genome in
     let genome_mapped_pairs =
       Bowtie2.bowtie2
@@ -253,9 +300,21 @@ module Detection = struct
         te, pipeline_for_te ~genome_index ~fq1:filtered_fq1 ~fq2:filtered_fq2 te
       in
       List.map transposable_elements ~f in
+    let count_table = Option.map gtf ~f:(fun gtf ->
+        List.map res_by_te ~f:(fun (_, x) -> x#detected_inserts)
+        |> count_table ~gtf
+      )
+    in
     object
       method res_by_te = res_by_te
       method repo =
+        let count_table =
+          Option.value_map count_table ~default:[] ~f:(fun x -> [
+                Repo.item ["count_table.tsv"] x
+              ]
+            )
+        in
+        count_table ::
         List.map res_by_te ~f:(fun (te, x) -> Repo.shift te.Te_library.id x#repo)
         |> List.concat
     end
@@ -330,7 +389,7 @@ let simulation_command =
       simulation_main ~genome ~np ~mem ~outdir ~verbose
     ]
 
-let detection ~preview_mode ~te_list ~fq1 ~fq2 ~genome ~np ~mem ~outdir ~verbose:_ () =
+let detection ~preview_mode ~te_list ~fq1 ~fq2 ~gtf ~genome ~np ~mem ~outdir ~verbose:_ () =
   let loggers = [
     Console_logger.create () ;
     Html_logger.create "report.html" ;
@@ -343,7 +402,9 @@ let detection ~preview_mode ~te_list ~fq1 ~fq2 ~genome ~np ~mem ~outdir ~verbose
       | None -> `full
       | Some i -> `preview i
     in
-    Detection.pipeline mode transposable_elements ~fq1 ~fq2 ~genome
+    let gtf = Option.map ~f:Bistro.Workflow.input gtf in
+    let genome = Bistro.Workflow.input genome in
+    Detection.pipeline mode transposable_elements ~fq1 ~fq2 ~gtf ~genome
   in
   Bistro_utils.Repo.(build_main ~loggers ~np ~mem:(`GB mem) ~outdir res#repo)
 
@@ -362,5 +423,5 @@ let detection_command =
       and mem = flag "--mem" (optional_with_default 8 int) ~doc:"INT Available memory (in GB)"
       and outdir = flag "--outdir" (optional string) ~doc:"PATH Output directory"
       and verbose = flag "--verbose" no_arg ~doc:" Log actions" in
-      detection ~preview_mode ~te_list ~fq1 ~fq2 ~genome ~np ~mem ~outdir ~verbose
+      detection ~preview_mode ~te_list ~fq1 ~fq2 ~genome ~gtf ~np ~mem ~outdir ~verbose
     ]
