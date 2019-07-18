@@ -29,6 +29,6 @@ let command =
   Command.basic
     ~summary:"A small script to format a fasta file containing all known drosophila TE"
     [%map_open
-      let file_in  = flag "--in"  (required file) ~doc:"PATH input fasta"
-      and file_out = flag "--out" (required file) ~doc:"PATH output fasta" in
+      let file_in  = flag "--in"  (required Filename.arg_type) ~doc:"PATH input fasta"
+      and file_out = flag "--out" (required Filename.arg_type) ~doc:"PATH output fasta" in
       main file_in file_out]

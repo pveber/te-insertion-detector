@@ -80,8 +80,8 @@ let command =
   Command.basic
     ~summary:"Add insertions of a TE in a genome"
     [%map_open
-      let te = flag "--te" (required file) ~doc:"PATH Transposable element (FASTA)"
-      and genome = flag "--genome" (required file) ~doc:"PATH Genome file (FASTA)"
-      and output = flag "--output" (required file) ~doc:"PATH Path where to write the modified genome"
+      let te = flag "--te" (required Filename.arg_type) ~doc:"PATH Transposable element (FASTA)"
+      and genome = flag "--genome" (required Filename.arg_type) ~doc:"PATH Genome file (FASTA)"
+      and output = flag "--output" (required Filename.arg_type) ~doc:"PATH Path where to write the modified genome"
       in
       main ~te ~genome ~output]

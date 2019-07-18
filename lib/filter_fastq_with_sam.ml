@@ -53,9 +53,9 @@ let command =
     ~summary:"Filter a FASTQ keeping only those having one fragment aligned in SAM"
     [%map_open
       let invert = flag "--invert" no_arg            ~doc:" Invert output (reads that are not in SAM)"
-      and sam = flag "--sam" (required file)      ~doc:"PATH Aligned reads (SAM)"
+      and sam = flag "--sam" (required Filename.arg_type)      ~doc:"PATH Aligned reads (SAM)"
       and min_mapq = flag "--min-mapq" (optional_with_default 30 int) ~doc:"INT MAPQ threshold to consider read in SAM"
-      and fq = flag "--fastq" (required file)    ~doc:"PATH Unaligned reads (FASTQ)"
+      and fq = flag "--fastq" (required Filename.arg_type)    ~doc:"PATH Unaligned reads (FASTQ)"
       and output = flag "--output" (required string) ~doc:"PATH Path where to write FASTQ output"
       in
       main ~min_mapq ~invert ~sam ~fq ~output]

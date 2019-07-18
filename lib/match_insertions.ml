@@ -226,7 +226,7 @@ let command =
   Command.basic
     ~summary:"Match detected insertions"
     [%map_open
-      let bed1 = anon ("BED1" %: file)
-      and bed2 = anon ("BED2" %: file)
-      and output = flag "--output" (required file) ~doc:"PATH Path where to write the matching" in
+      let bed1 = anon ("BED1" %: Filename.arg_type)
+      and bed2 = anon ("BED2" %: Filename.arg_type)
+      and output = flag "--output" (required Filename.arg_type) ~doc:"PATH Path where to write the matching" in
       main bed1 bed2 output]

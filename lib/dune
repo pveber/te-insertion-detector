@@ -3,6 +3,6 @@
  (public_name te-insertion-detector)
  (libraries assignment.bed assignment.dynamic biocaml.ez bistro.bioinfo
    bistro.utils cfstream pipes.unix gzt ocaml-r.stats ocaml-r.graphics ocaml-r.grDevices)
- (flags :standard -unsafe-string)
+ (flags :standard -unsafe-string -short-paths)
  (preprocess
   (pps ppx_deriving.std ppx_sexp_conv bistro.ppx ppx_let ppx_enumerate)))
