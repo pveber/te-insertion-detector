@@ -207,11 +207,10 @@ module Detection = struct
       df ;
     OCamlR_grDevices.dev_off ()
 
-  let%pworkflow count_table ~gtf detected_inserts =
+  let%pworkflow count_table ~gtf tes detected_inserts =
     let detected_inserts =
       [%eval Bistro.Workflow.list detected_inserts]
       |> List.map ~f:(List.map ~f:fst)
-      |> List.concat
     in
     let gtf = Gzt.Gtf.load [%path gtf] in
     let annotation = Gzt.Gtf.Annotation.of_items gtf in
@@ -220,36 +219,46 @@ module Detection = struct
     let introns = String.Table.map genes ~f:Gzt.Gene.introns in
     let utr3' = Gzt.Gtf.Annotation.utr3' annotation in
     let utr5' = Gzt.Gtf.Annotation.utr5' annotation in
-    let counts = String.Table.mapi genes ~f:(fun ~key:id ~data:_ ->
+    let counts = String.Table.mapi genes ~f:(fun ~key:id ~data:gene ->
         let exons = String.Table.find_exn exons id in
         let introns = String.Table.find_exn introns id in
-        let exon_count =
-          List.count detected_inserts ~f:(fun i -> List.exists exons ~f:(Gzt.GLoc.intersects i))
-        in
-        let intron_count =
-          List.count detected_inserts ~f:(fun i -> List.exists introns ~f:(Gzt.GLoc.intersects i))
-        in
-        let utr3'_count =
-          Option.value_map (String.Table.find utr3' id) ~default:0 ~f:(fun utr3' ->
-              let utr3'_loc = Gzt.Gff.Record.loc utr3' in
-              List.count detected_inserts ~f:(fun i -> Gzt.GLoc.intersects i utr3'_loc)
-            )
-        in
-        let utr5'_count =
-          Option.value_map (String.Table.find utr5' id) ~default:0 ~f:(fun utr5' ->
-              let utr5'_loc = Gzt.Gff.Record.loc utr5' in
-              List.count detected_inserts ~f:(fun i -> Gzt.GLoc.intersects i utr5'_loc)
-            )
-        in
-        [ exon_count ; intron_count ; utr5'_count ; utr3'_count ]
+        let upstream_region = Gzt.Gene.upstream gene 5_000 in
+        let downstream_region = Gzt.Gene.downstream gene 5_000 in
+        List.map2_exn tes detected_inserts ~f:(fun te detected_inserts ->
+            let count f = List.count detected_inserts ~f in
+            let count_inter loc = count (fun i -> Gzt.GLoc.intersects i loc) in
+            let exon_count =
+              count (fun i -> List.exists exons ~f:(Gzt.GLoc.intersects i))
+            in
+            let intron_count =
+              count (fun i -> List.exists introns ~f:(Gzt.GLoc.intersects i))
+            in
+            let utr3'_count =
+              Option.value_map (String.Table.find utr3' id) ~default:0 ~f:(fun utr3' ->
+                  let utr3'_loc = Gzt.Gff.Record.loc utr3' in
+                  count_inter utr3'_loc
+                )
+            in
+            let utr5'_count =
+              Option.value_map (String.Table.find utr5' id) ~default:0 ~f:(fun utr5' ->
+                  let utr5'_loc = Gzt.Gff.Record.loc utr5' in
+                  count_inter utr5'_loc
+                )
+            in
+            let upstream_count = count_inter upstream_region in
+            let downstream_count = count_inter downstream_region in
+            te.Te_library.id, [ exon_count ; intron_count ; utr5'_count ; utr3'_count ; upstream_count ; downstream_count ]
+          )
       )
     in
     Out_channel.with_file [%dest] ~f:(fun oc ->
-        fprintf oc "id\texon\tintron\t5UTR\t3UTR\n" ;
-        String.Table.iteri counts ~f:(fun ~key:id ~data:counts ->
-            Out_channel.output_string oc id ;
-            List.iter counts ~f:(fprintf oc "\t%d") ;
-            Out_channel.newline oc
+        fprintf oc "geneid\tTE\texon\tintron\t5UTR\t3UTR\tupstream\tdownstream\n" ;
+        String.Table.iteri counts ~f:(fun ~key:id ~data:counts_by_te ->
+            List.iter counts_by_te ~f:(fun (te, counts) ->
+                Out_channel.fprintf oc "%s\t%s" id te ;
+                List.iter counts ~f:(fprintf oc "\t%d") ;
+                Out_channel.newline oc
+              )
           ) ;
       )
 
@@ -302,7 +311,7 @@ module Detection = struct
       List.map transposable_elements ~f in
     let count_table = Option.map gtf ~f:(fun gtf ->
         List.map res_by_te ~f:(fun (_, x) -> x#detected_inserts)
-        |> count_table ~gtf
+        |> count_table ~gtf transposable_elements
       )
     in
     object
