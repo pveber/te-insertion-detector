@@ -265,7 +265,7 @@ module Detection = struct
   let pipeline_for_te ~genome_index ~fq1 ~fq2 te =
     let te_index = Bowtie2.bowtie2_build (Misc.fasta_of_te te) in
     let mapped_reads index fq =
-      Bowtie2.bowtie2 ~mode:`local ~no_unal:true index (`single_end [fq])
+      Bowtie2.bowtie2 ~mode:`local ~no_unal:true index (SE_or_PE.Single_end [fq])
       |> Samtools.bam_of_sam
       |> Picardtools.sort_bam_by_name
     in
@@ -297,7 +297,7 @@ module Detection = struct
       Bowtie2.bowtie2
         ~no_unal:true ~no_discordant:true ~no_mixed:true
         genome_index
-        (`paired_end ([fq1], [fq2])) in
+        (SE_or_PE.Paired_end ([fq1], [fq2])) in
     let filtered_fq1, filtered_fq2 =
       let filter x =
         Misc.filter_fastq_with_sam_gz ~min_mapq:1 ~invert:true genome_mapped_pairs x
@@ -349,7 +349,7 @@ let simulation_main ~genome ~np ~mem ~outdir ~verbose:_ () =
   let genome_index = Bowtie2.bowtie2_build original_genome in
   let te_index = Bowtie2.bowtie2_build te in
   let genome_mapped_pairs =
-    Bowtie2.bowtie2 ~no_unal:true ~no_discordant:true ~no_mixed:true genome_index (`paired_end ([fq1], [fq2])) in
+    Bowtie2.bowtie2 ~no_unal:true ~no_discordant:true ~no_mixed:true genome_index (SE_or_PE.Paired_end ([fq1], [fq2])) in
   let filtered_fq1, filtered_fq2 =
     let filter x =
       Misc.filter_fastq_with_sam ~min_mapq:1 ~invert:true genome_mapped_pairs x
@@ -357,7 +357,7 @@ let simulation_main ~genome ~np ~mem ~outdir ~verbose:_ () =
     filter fq1, filter fq2
   in
   let mapped_reads index fq =
-    Bowtie2.bowtie2 ~mode:`local ~no_unal:true index (`single_end [fq])
+    Bowtie2.bowtie2 ~mode:`local ~no_unal:true index (SE_or_PE.Single_end [fq])
     |> Samtools.bam_of_sam
     |> Picardtools.sort_bam_by_name
   in
@@ -370,7 +370,7 @@ let simulation_main ~genome ~np ~mem ~outdir ~verbose:_ () =
       item ["frontier_reads"] (Detection.dump_frontier_pairs frontier_pairs) ;
       item ["mapq_hyp.pdf"] (Detection.mapq_hypothesis frontier_pairs insertion_bed) ;
       item ["insertions.bed"] insertion_bed ;
-      item ["mapped_reads"] (Samtools.indexed_bam_of_sam (Bowtie2.(bowtie2 (bowtie2_build simulated_genome_fa) (`paired_end ([fq1], [fq2]))))) ;
+      item ["mapped_reads"] (Samtools.indexed_bam_of_sam (Bowtie2.(bowtie2 (bowtie2_build simulated_genome_fa) (SE_or_PE.Paired_end ([fq1], [fq2]))))) ;
       item ["mapped_on_original.sam"] genome_mapped_pairs ;
       item ["original.fa"] original_genome ;
       item ["simulated_genome.fa"] simulated_genome_fa ;
