@@ -262,7 +262,22 @@ module Detection = struct
           ) ;
       )
 
-  let pipeline_for_te ~genome_index ~fq1 ~fq2 te =
+  let pipeline_for_te ~mode ~genome ~fq1 ~fq2 te =
+    let fq1, fq2 =
+      Pipeline.Detection.fastq_gz mode fq1,
+      Pipeline.Detection.fastq_gz mode fq2 in
+    let genome_index = Bowtie2.bowtie2_build genome in
+    let genome_mapped_pairs =
+      Bowtie2.bowtie2
+        ~no_unal:true ~no_discordant:true ~no_mixed:true
+        genome_index
+        (SE_or_PE.Paired_end ([fq1], [fq2])) in
+    let fq1, fq2 =
+      let filter x =
+        Misc.filter_fastq_with_sam_gz ~min_mapq:1 ~invert:true genome_mapped_pairs x
+      in
+      filter fq1, filter fq2
+    in
     let te_index = Bowtie2.bowtie2_build (Misc.fasta_of_te te) in
     let mapped_reads index fq =
       Bowtie2.bowtie2 ~mode:`local ~no_unal:true index (SE_or_PE.Single_end [fq])
@@ -288,25 +303,10 @@ module Detection = struct
       ]
     end
 
-  let pipeline mode transposable_elements ~fq1 ~fq2 ~gtf ~genome =
-    let fq1, fq2 =
-      Pipeline.Detection.fastq_gz mode fq1,
-      Pipeline.Detection.fastq_gz mode fq2 in
-    let genome_index = Bowtie2.bowtie2_build genome in
-    let genome_mapped_pairs =
-      Bowtie2.bowtie2
-        ~no_unal:true ~no_discordant:true ~no_mixed:true
-        genome_index
-        (SE_or_PE.Paired_end ([fq1], [fq2])) in
-    let filtered_fq1, filtered_fq2 =
-      let filter x =
-        Misc.filter_fastq_with_sam_gz ~min_mapq:1 ~invert:true genome_mapped_pairs x
-      in
-      filter fq1, filter fq2
-    in
+  let pipeline mode transposable_elements ~fq1 ~fq2 ?gtf ~genome =
     let res_by_te =
       let f te =
-        te, pipeline_for_te ~genome_index ~fq1:filtered_fq1 ~fq2:filtered_fq2 te
+        te, pipeline_for_te ~genome ~mode ~fq1 ~fq2 te
       in
       List.map transposable_elements ~f in
     let count_table = Option.map gtf ~f:(fun gtf ->
@@ -398,7 +398,7 @@ let simulation_command =
       simulation_main ~genome ~np ~mem ~outdir ~verbose
     ]
 
-let detection ~preview_mode ~te_list ~fq1 ~fq2 ~gtf ~genome ~np ~mem ~outdir ~verbose:_ () =
+let detection ~preview_mode ~te_list ~fq1 ~fq2 ?gtf ~genome ~np ~mem ~outdir ~verbose:_ () =
   let loggers = [
     Console_logger.create () ;
     Html_logger.create "report.html" ;
@@ -413,7 +413,7 @@ let detection ~preview_mode ~te_list ~fq1 ~fq2 ~gtf ~genome ~np ~mem ~outdir ~ve
     in
     let gtf = Option.map ~f:Bistro.Workflow.input gtf in
     let genome = Bistro.Workflow.input genome in
-    Detection.pipeline mode transposable_elements ~fq1 ~fq2 ~gtf ~genome
+    Detection.pipeline mode transposable_elements ~fq1 ~fq2 ?gtf ~genome
   in
   Bistro_utils.Repo.(build_main ~loggers ~np ~mem:(`GB mem) ~outdir res#repo)
 
@@ -432,5 +432,5 @@ let detection_command =
       and mem = flag "--mem" (optional_with_default 8 int) ~doc:"INT Available memory (in GB)"
       and outdir = flag "--outdir" (optional string) ~doc:"PATH Output directory"
       and verbose = flag "--verbose" no_arg ~doc:" Log actions" in
-      detection ~preview_mode ~te_list ~fq1 ~fq2 ~genome ~gtf ~np ~mem ~outdir ~verbose
+      detection ~preview_mode ~te_list ~fq1 ~fq2 ~genome ?gtf ~np ~mem ~outdir ~verbose
     ]
