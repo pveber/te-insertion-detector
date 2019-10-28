@@ -81,6 +81,18 @@ let%pworkflow annotated_insertions spe te_library =
   let gtf = Gzt.Gtf.load [%path Species.annotation spe ] in
   let annotation = Gzt.Gtf.Annotation.of_items gtf in
   let genes, _ = Gzt.Gtf.Annotation.genes annotation in
+  let feature_map annotation f =
+    String.Table.to_alist annotation
+    |> CFStream.Stream.of_list
+    |> CFStream.Stream.concat_map ~f:(fun (_, g) ->
+        CFStream.Stream.of_list (f g)
+      )
+    |> Gzt.GAnnot.LSet.of_stream
+  in
+  let exon_map = feature_map genes Gzt.Gene.exons in
+  let intron_map = feature_map genes Gzt.Gene.introns in
+  let utr3_map = feature_map (Gzt.Gtf.Annotation.utr3' annotation) (fun r -> [ Gzt.Gtf.Record.loc r ]) in
+  let utr5_map = feature_map (Gzt.Gtf.Annotation.utr5' annotation) (fun r -> [ Gzt.Gtf.Record.loc r ]) in
   let gene_map =
     String.Table.to_alist genes
     |> CFStream.Stream.of_list
@@ -91,10 +103,10 @@ let%pworkflow annotated_insertions spe te_library =
   in
   let samples = samples_for_species spe in
   Out_channel.with_file [%dest] ~f:(fun oc ->
-      fprintf oc "chrom\tpos\tTE\t%s\tgene_id\texon\tintron\t5UTR\t3UTR\tupstream\tdownstream\n"
+      fprintf oc "chrom\tpos\tTE\tgene_id\t%s\texon\tintron\t5UTR\t3UTR\tupstream\tdownstream\n"
         (String.concat ~sep:"\t" (List.map samples ~f:Sample.to_string)) ;
       List.iter2_exn te_library grouped_inserts ~f:(fun te inserts ->
-          List.iter inserts ~f:(fun (chrom, pos, _samples) ->
+          List.iter inserts ~f:(fun (chrom, pos, found) ->
               let loc = Gzt.GLoc.{ chr = chrom ; lo = pos ; hi = pos + 1 } in
               let genes =
                 Gzt.GAnnot.LMap.intersecting_elems gene_map loc
@@ -102,11 +114,22 @@ let%pworkflow annotated_insertions spe te_library =
                 |> CFStream.Stream.to_list
               in
               let gene_id = match genes with
-                | [] -> "none"
-                | [ id, _ ] -> id
-                | _ -> "ambiguous"
+                | [] -> "NA"
+                | xs -> List.map xs ~f:fst |> String.concat ~sep:":"
               in
-              Out_channel.fprintf oc "%s\t%d\t%s\t%s" chrom pos te.id gene_id ;
+              let sample_cols =
+                List.map samples ~f:(fun s ->
+                    if List.mem found s ~equal:Poly.equal then "1" else "0"
+                  )
+                |> String.concat ~sep:"\t"
+              in
+              let region_type =
+                List.map [ exon_map ; intron_map ; utr3_map ; utr5_map ] ~f:(fun map ->
+                    if Gzt.GAnnot.LSet.intersects map loc then "1" else "0"
+                  )
+                |> String.concat ~sep:"\t"
+              in
+              Out_channel.fprintf oc "%s\t%d\t%s\t%s\t%s\t%s" chrom pos te.id gene_id sample_cols region_type ;
               Out_channel.newline oc
             )
         ) ;
