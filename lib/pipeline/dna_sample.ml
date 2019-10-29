@@ -1,6 +1,5 @@
 open Core_kernel
 open Bistro
-open Bistro_bioinfo
 open Te_insertion_detector
 
 type t = [
@@ -14,12 +13,6 @@ type t = [
 let samples_for_species spe =
   List.filter all ~f:(fun s -> Sample.species s = spe)
 
-let genome s : fasta pworkflow =
-  match Sample.species s with
-  | `Dmel ->
-    Bistro_unix.wget "ftp://ftp.flybase.net/genomes/Drosophila_melanogaster/dmel_r6.29_FB2019_04/fasta/dmel-all-chromosome-r6.29.fasta.gz"
-    |> Bistro_unix.gunzip
-
 let annotation s =
   Species.annotation (Sample.species s)
 
@@ -29,7 +22,7 @@ let insertions (s : t) te =
       ~mode:`full te
       ~fq1:(Sample.r1_path s)
       ~fq2:(Sample.r2_path s)
-      ~genome:(genome s)
+      ~genome:(Species.genome (Sample.species s))
   in
   [%workflow List.map [%eval res#detected_inserts] ~f:fst]
 

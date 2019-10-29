@@ -16,3 +16,14 @@ let reduced_te_library = function
 let te_library = function
   | `Dmel ->
     "data/melanogaster_te_list.fa"
+
+let genome s : fasta pworkflow =
+  match s with
+  | `Dmel ->
+    Bistro_unix.wget "ftp://ftp.flybase.net/genomes/Drosophila_melanogaster/dmel_r6.29_FB2019_04/fasta/dmel-all-chromosome-r6.29.fasta.gz"
+    |> Bistro_unix.gunzip
+
+let indexed_genome s = Samtools.faidx (genome s)
+
+let bowtie2_index s =
+  Bowtie2.bowtie2_build (genome s)
