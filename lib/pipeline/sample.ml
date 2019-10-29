@@ -32,9 +32,33 @@ type t = [
   | `DmSJRP7_wce_1
   | `DmSJRP7_wce_2
   | `DsGoth3_dna
+  | `DsGoth3_k4_1
+  | `DsGoth3_k4_2
+  | `DsGoth3_k9_1
+  | `DsGoth3_k9_2
+  | `DsGoth3_wce_1
+  | `DsGoth3_wce_2
   | `DsGoth6_dna
+  | `DsGoth6_k4_1
+  | `DsGoth6_k4_2
+  | `DsGoth6_k9_1
+  | `DsGoth6_k9_2
+  | `DsGoth6_wce_1
+  | `DsGoth6_wce_2
   | `DsSJRP27_dna
+  | `DsSJRP27_k4_1
+  | `DsSJRP27_k4_2
+  | `DsSJRP27_k9_1
+  | `DsSJRP27_k9_2
+  | `DsSJRP27_wce_1
+  | `DsSJRP27_wce_2
   | `DsSJRP9_dna
+  | `DsSJRP9_k4_1
+  | `DsSJRP9_k4_2
+  | `DsSJRP9_k9_1
+  | `DsSJRP9_k9_2
+  | `DsSJRP9_wce_1
+  | `DsSJRP9_wce_2
 ]
 
 let to_string = function
@@ -67,9 +91,33 @@ let to_string = function
   | `DmSJRP7_wce_1 -> "DmSJRP7_wce_1"
   | `DmSJRP7_wce_2 -> "DmSJRP7_wce_2"
   | `DsGoth3_dna -> "DsGoth3_dna"
+  | `DsGoth3_k4_1 -> "DsGoth3_k4_1"
+  | `DsGoth3_k4_2 -> "DsGoth3_k4_2"
+  | `DsGoth3_k9_1 -> "DsGoth3_k9_1"
+  | `DsGoth3_k9_2 -> "DsGoth3_k9_2"
+  | `DsGoth3_wce_1 -> "DsGoth3_wce_1"
+  | `DsGoth3_wce_2 -> "DsGoth3_wce_2"
   | `DsGoth6_dna -> "DsGoth6_dna"
+  | `DsGoth6_k4_1 -> "DsGoth6_k4_1"
+  | `DsGoth6_k4_2 -> "DsGoth6_k4_2"
+  | `DsGoth6_k9_1 -> "DsGoth6_k9_1"
+  | `DsGoth6_k9_2 -> "DsGoth6_k9_2"
+  | `DsGoth6_wce_1 -> "DsGoth6_wce_1"
+  | `DsGoth6_wce_2 -> "DsGoth6_wce_2"
   | `DsSJRP27_dna -> "DsSJRP27_dna"
+  | `DsSJRP27_k4_1 -> "DsSJRP27_k4_1"
+  | `DsSJRP27_k4_2 -> "DsSJRP27_k4_2"
+  | `DsSJRP27_k9_1 -> "DsSJRP27_k9_1"
+  | `DsSJRP27_k9_2 -> "DsSJRP27_k9_2"
+  | `DsSJRP27_wce_1 -> "DsSJRP27_wce_1"
+  | `DsSJRP27_wce_2 -> "DsSJRP27_wce_2"
   | `DsSJRP9_dna -> "DsSJRP9_dna"
+  | `DsSJRP9_k4_1 -> "DsSJRP9_k4_1"
+  | `DsSJRP9_k4_2 -> "DsSJRP9_k4_2"
+  | `DsSJRP9_k9_1 -> "DsSJRP9_k9_1"
+  | `DsSJRP9_k9_2 -> "DsSJRP9_k9_2"
+  | `DsSJRP9_wce_1 -> "DsSJRP9_wce_1"
+  | `DsSJRP9_wce_2 -> "DsSJRP9_wce_2"
 
 
 let id = function
@@ -97,6 +145,30 @@ let id = function
   | `DmSJRP7_k9_2 -> "CNVR26"
   | `DmSJRP7_wce_1 -> "CNVR7"
   | `DmSJRP7_wce_2 -> "CNVR8"
+  | `DsGoth3_k4_1 -> "CNVR192"
+  | `DsGoth3_k4_2 -> "CNVR195"
+  | `DsGoth3_k9_1 -> "CNVR193"
+  | `DsGoth3_k9_2 -> "CNVR196"
+  | `DsGoth3_wce_1 -> "CNVR191"
+  | `DsGoth3_wce_2 -> "CNVR194"
+  | `DsGoth6_k4_1 -> "CNVR228"
+  | `DsGoth6_k4_2 -> "CNVR231"
+  | `DsGoth6_k9_1 -> "CNVR229"
+  | `DsGoth6_k9_2 -> "CNVR232"
+  | `DsGoth6_wce_1 ->"CNVR227"
+  | `DsGoth6_wce_2 ->"CNVR230"
+  | `DsSJRP27_k4_1 ->"CNVR210"
+  | `DsSJRP27_k4_2 ->"CNVR213"
+  | `DsSJRP27_k9_1 ->"CNVR211"
+  | `DsSJRP27_k9_2 ->"CNVR214"
+  | `DsSJRP27_wce_1 -> "CNVR209"
+  | `DsSJRP27_wce_2 -> "CNVR212"
+  | `DsSJRP9_k4_1 ->"CNVR246"
+  | `DsSJRP9_k4_2 ->"CNVR249"
+  | `DsSJRP9_k9_1 ->"CNVR247"
+  | `DsSJRP9_k9_2 ->"CNVR250"
+  | `DsSJRP9_wce_1 ->"CNVR245"
+  | `DsSJRP9_wce_2 ->"CNVR248"
 
 let species = function
   | `DmGoth6_k4_1
@@ -128,9 +200,33 @@ let species = function
   | `DmSJRP23_dna
   | `DmSJRP7_dna -> `Dmel
   | `DsGoth3_dna
+  | `DsGoth3_k4_1
+  | `DsGoth3_k4_2
+  | `DsGoth3_k9_1
+  | `DsGoth3_k9_2
+  | `DsGoth3_wce_1
+  | `DsGoth3_wce_2
   | `DsGoth6_dna
+  | `DsGoth6_k4_1
+  | `DsGoth6_k4_2
+  | `DsGoth6_k9_1
+  | `DsGoth6_k9_2
+  | `DsGoth6_wce_1
+  | `DsGoth6_wce_2
   | `DsSJRP27_dna
-  | `DsSJRP9_dna -> `Dsim
+  | `DsSJRP27_k4_1
+  | `DsSJRP27_k4_2
+  | `DsSJRP27_k9_1
+  | `DsSJRP27_k9_2
+  | `DsSJRP27_wce_1
+  | `DsSJRP27_wce_2
+  | `DsSJRP9_dna
+  | `DsSJRP9_k4_1
+  | `DsSJRP9_k4_2
+  | `DsSJRP9_k9_1
+  | `DsSJRP9_k9_2
+  | `DsSJRP9_wce_1
+  | `DsSJRP9_wce_2 -> `Dsim
 
 
 let r1_path = function
@@ -157,7 +253,31 @@ let r1_path = function
   | `DmSJRP7_k9_1
   | `DmSJRP7_k9_2
   | `DmSJRP7_wce_1
-  | `DmSJRP7_wce_2 as s ->
+  | `DmSJRP7_wce_2
+  | `DsGoth3_k4_1
+  | `DsGoth3_k4_2
+  | `DsGoth3_k9_1
+  | `DsGoth3_k9_2
+  | `DsGoth3_wce_1
+  | `DsGoth3_wce_2
+  | `DsGoth6_k4_1
+  | `DsGoth6_k4_2
+  | `DsGoth6_k9_1
+  | `DsGoth6_k9_2
+  | `DsGoth6_wce_1
+  | `DsGoth6_wce_2
+  | `DsSJRP27_k4_1
+  | `DsSJRP27_k4_2
+  | `DsSJRP27_k9_1
+  | `DsSJRP27_k9_2
+  | `DsSJRP27_wce_1
+  | `DsSJRP27_wce_2
+  | `DsSJRP9_k4_1
+  | `DsSJRP9_k4_2
+  | `DsSJRP9_k9_1
+  | `DsSJRP9_k9_2
+  | `DsSJRP9_wce_1
+  | `DsSJRP9_wce_2 as s ->
     sprintf "data/FRM_controles_2019/%s.R1.fastq.gz" (id s)
   | `DmGoth6_dna -> "data/FRM/FRM_genomes/Pool1-PE/LibPE-DmGoth6-3_CGATGT_L001_R1.fastq.gz"
   | `DmGoth10_dna -> "data/FRM/FRM_genomes/Pool1-PE/LibPE-DmGoth10-1_ATCACG_L001_R1.fastq.gz"
@@ -192,7 +312,31 @@ let r2_path = function
   | `DmSJRP7_k9_1
   | `DmSJRP7_k9_2
   | `DmSJRP7_wce_1
-  | `DmSJRP7_wce_2 as s ->
+  | `DmSJRP7_wce_2
+  | `DsGoth3_k4_1
+  | `DsGoth3_k4_2
+  | `DsGoth3_k9_1
+  | `DsGoth3_k9_2
+  | `DsGoth3_wce_1
+  | `DsGoth3_wce_2
+  | `DsGoth6_k4_1
+  | `DsGoth6_k4_2
+  | `DsGoth6_k9_1
+  | `DsGoth6_k9_2
+  | `DsGoth6_wce_1
+  | `DsGoth6_wce_2
+  | `DsSJRP27_k4_1
+  | `DsSJRP27_k4_2
+  | `DsSJRP27_k9_1
+  | `DsSJRP27_k9_2
+  | `DsSJRP27_wce_1
+  | `DsSJRP27_wce_2
+  | `DsSJRP9_k4_1
+  | `DsSJRP9_k4_2
+  | `DsSJRP9_k9_1
+  | `DsSJRP9_k9_2
+  | `DsSJRP9_wce_1
+  | `DsSJRP9_wce_2 as s ->
     sprintf "data/FRM_controles_2019/%s.R2.fastq.gz" (id s)
   | `DmGoth6_dna -> "data/FRM/FRM_genomes/Pool1-PE/LibPE-DmGoth6-3_CGATGT_L001_R2.fastq.gz"
   | `DmGoth10_dna -> "data/FRM/FRM_genomes/Pool1-PE/LibPE-DmGoth10-1_ATCACG_L001_R2.fastq.gz"
