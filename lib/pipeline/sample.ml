@@ -31,6 +31,10 @@ type t = [
   | `DmSJRP7_k9_2
   | `DmSJRP7_wce_1
   | `DmSJRP7_wce_2
+  | `DsGoth3_dna
+  | `DsGoth6_dna
+  | `DsSJRP27_dna
+  | `DsSJRP9_dna
 ]
 
 let to_string = function
@@ -62,6 +66,10 @@ let to_string = function
   | `DmSJRP7_k9_2 -> "DmSJRP7_k9_2"
   | `DmSJRP7_wce_1 -> "DmSJRP7_wce_1"
   | `DmSJRP7_wce_2 -> "DmSJRP7_wce_2"
+  | `DsGoth3_dna -> "DsGoth3_dna"
+  | `DsGoth6_dna -> "DsGoth6_dna"
+  | `DsSJRP27_dna -> "DsSJRP27_dna"
+  | `DsSJRP9_dna -> "DsSJRP9_dna"
 
 
 let id = function
@@ -119,6 +127,11 @@ let species = function
   | `DmGoth10_dna
   | `DmSJRP23_dna
   | `DmSJRP7_dna -> `Dmel
+  | `DsGoth3_dna
+  | `DsGoth6_dna
+  | `DsSJRP27_dna
+  | `DsSJRP9_dna -> `Dsim
+
 
 let r1_path = function
   | `DmGoth6_k4_1
@@ -145,20 +158,50 @@ let r1_path = function
   | `DmSJRP7_k9_2
   | `DmSJRP7_wce_1
   | `DmSJRP7_wce_2 as s ->
-    sprintf "data/ChIPseq_trimmed_reads/%s/%s_R1_trimmed_%s.tar.gz"
-      (match species s with `Dmel -> "dmel")
-      (id s)
-      (assert false) (* replicate ? *)
+    sprintf "data/FRM_controles_2019/%s.R1.fastq.gz" (id s)
   | `DmGoth6_dna -> "data/FRM/FRM_genomes/Pool1-PE/LibPE-DmGoth6-3_CGATGT_L001_R1.fastq.gz"
   | `DmGoth10_dna -> "data/FRM/FRM_genomes/Pool1-PE/LibPE-DmGoth10-1_ATCACG_L001_R1.fastq.gz"
   | `DmSJRP23_dna -> "data/FRM/FRM_genomes/23_ATTCCT_L006_R1.fastq.gz"
   | `DmSJRP7_dna -> "data/FRM/FRM_genomes/Pool1-PE/LibPE-DmSJRP7_TTAGGC_L001_R1.fastq.gz"
+  | `DsGoth3_dna -> "data/FRM/FRM_genomes/Pool2-PE/LibPE-DsGoth3-1_TAGCTT_L002_R1.fastq.gz"
+  | `DsGoth6_dna -> "data/FRM/FRM_genomes/Pool1-PE/LibPE-DsGoth6-13_ACTTGA_L001_R1.fastq.gz"
+  | `DsSJRP27_dna -> "data/FRM/FRM_genomes/Pool1-PE/LibPE-DsSJRP27_TGACCA_L001_R1.fastq.gz"
+  | `DsSJRP9_dna -> "data/FRM/FRM_genomes/Pool2-PE/LibPE-DsSJRP9_GATCAG_L002_R1.fastq.gz"
 
 let r2_path = function
+  | `DmGoth6_k4_1
+  | `DmGoth6_k4_2
+  | `DmGoth6_k9_1
+  | `DmGoth6_k9_2
+  | `DmGoth6_wce_1
+  | `DmGoth6_wce_2
+  | `DmGoth10_k4_1
+  | `DmGoth10_k4_2
+  | `DmGoth10_k9_1
+  | `DmGoth10_k9_2
+  | `DmGoth10_wce_1
+  | `DmGoth10_wce_2
+  | `DmSJRP23_k4_1
+  | `DmSJRP23_k4_2
+  | `DmSJRP23_k9_1
+  | `DmSJRP23_k9_2
+  | `DmSJRP23_wce_1
+  | `DmSJRP23_wce_2
+  | `DmSJRP7_k4_1
+  | `DmSJRP7_k4_2
+  | `DmSJRP7_k9_1
+  | `DmSJRP7_k9_2
+  | `DmSJRP7_wce_1
+  | `DmSJRP7_wce_2 as s ->
+    sprintf "data/FRM_controles_2019/%s.R2.fastq.gz" (id s)
   | `DmGoth6_dna -> "data/FRM/FRM_genomes/Pool1-PE/LibPE-DmGoth6-3_CGATGT_L001_R2.fastq.gz"
   | `DmGoth10_dna -> "data/FRM/FRM_genomes/Pool1-PE/LibPE-DmGoth10-1_ATCACG_L001_R2.fastq.gz"
   | `DmSJRP23_dna -> "data/FRM/FRM_genomes/23_ATTCCT_L006_R2.fastq.gz"
   | `DmSJRP7_dna -> "data/FRM/FRM_genomes/Pool1-PE/LibPE-DmSJRP7_TTAGGC_L001_R2.fastq.gz"
+  | `DsGoth3_dna -> "data/FRM/FRM_genomes/Pool2-PE/LibPE-DsGoth3-1_TAGCTT_L002_R2.fastq.gz"
+  | `DsGoth6_dna -> "data/FRM/FRM_genomes/Pool1-PE/LibPE-DsGoth6-13_ACTTGA_L001_R2.fastq.gz"
+  | `DsSJRP27_dna -> "data/FRM/FRM_genomes/Pool1-PE/LibPE-DsSJRP27_TGACCA_L001_R2.fastq.gz"
+  | `DsSJRP9_dna -> "data/FRM/FRM_genomes/Pool2-PE/LibPE-DsSJRP9_GATCAG_L002_R2.fastq.gz"
 
 let fastq_gz s : sanger_fastq gz pworkflow SE_or_PE.t =
   SE_or_PE.Paired_end (r1_path s, r2_path s)
