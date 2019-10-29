@@ -6,14 +6,17 @@ include Bistro_utils.Toplevel_eval.Make(struct
   let mem = 10
 end)()
 
+let annotated_insertions spe =
+  let open Te_insertion_detector_pipeline in
+  let te_library =
+    Te_insertion_detector.Misc.load_transposable_elements (Species.te_library spe)
+  in
+  Dna_sample.annotated_insertions spe te_library
+  |> less
+
 let wip_main () =
   let open Te_insertion_detector_pipeline in
   try
-    (* let te_library =
-     *   Te_insertion_detector.Misc.load_transposable_elements (Species.te_library `Dmel)
-     * in
-     * Dna_sample.annotated_insertions `Dmel te_library
-     * |> less *)
     List.concat Igv.Script.[
         [
           _new_ ;
