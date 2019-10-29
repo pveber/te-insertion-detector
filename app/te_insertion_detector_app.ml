@@ -14,22 +14,26 @@ let annotated_insertions spe =
   Dna_sample.annotated_insertions spe te_library
   |> less
 
-let wip_main () =
+let browse_chIP_datasets () =
+  let open Bistro in
   let open Te_insertion_detector_pipeline in
+  let samples = EM_ChIP_sample.subset ~species:`Dmel () in
+  let signals = List.map samples ~f:(fun s ->
+      Genomic_sample.signal s
+    )
+  in
+  [%workflow
+    let igv = new Gzt.Igv.proxy () in
+    ignore igv#_new_ ;
+    ignore @@ igv#genome [%path Species.indexed_genome `Dmel] ;
+    List.iter2_exn samples  [%eval Workflow.eval_paths signals] ~f:(fun s signal ->
+        ignore @@ igv#load ~format:"bigwig" ~name:(Sample.to_string s) signal
+      )
+  ]
+
+let wip_main () =
   try
-    List.concat Igv.Script.[
-        [
-          _new_ ;
-          custom_genome (Species.indexed_genome `Dmel) ;
-        ] ;
-        List.map [`DmGoth10_k4_1 ; `DmGoth10_k4_2 ; `DmSJRP23_k4_1 ; `DmSJRP23_k4_2 ] ~f:(fun s ->
-            load_bigwig (Genomic_sample.signal s)
-          ) ;
-      ]
-    |> Igv.Script.make
-    |> Igv.script
-    |> path
-    |> print_endline
+    eval @@ browse_chIP_datasets ()
   with Failure msg -> print_endline msg
 
 let wip_command = Command.basic ~summary:"WIP" (Command.Param.return wip_main)

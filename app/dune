@@ -1,4 +1,5 @@
 (executable
  (name te_insertion_detector_app)
  (public_name te-insertion-detector)
- (libraries te-insertion-detector.pipeline))
+ (libraries te-insertion-detector.pipeline)
+ (preprocess (pps bistro.ppx)))
