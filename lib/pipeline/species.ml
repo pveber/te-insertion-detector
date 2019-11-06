@@ -1,3 +1,4 @@
+open Core_kernel
 open Bistro
 open Bistro_bioinfo
 
@@ -16,6 +17,27 @@ let reduced_te_library = function
     "data/reduced_melanogaster_te_list.fa"
   | `Dsim ->
     assert false
+
+let line_head =
+  let space_re = Re.Pcre.regexp "[ \t]+" in
+  fun s ->
+    match (Re.Seq.split space_re s) () with
+    | Seq.Cons (h, _) -> h
+    | _ -> assert false
+
+let load_te_library fa =
+  match Gzt.Fasta.from_file fa with
+  | Ok (_, items) ->
+    List.filter_map items ~f:(fun it ->
+        if
+          String.is_substring it.description ~substring:"melanogaster"
+          || String.is_substring it.description ~substring:"simulans"
+        then
+          let id = line_head it.description in
+          Some Te_insertion_detector.Te_library.{ id ; sequence = it.sequence }
+        else None
+      )
+  | Error _ -> assert false
 
 let te_library = function
   | `Dmel ->

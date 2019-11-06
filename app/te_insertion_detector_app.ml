@@ -9,7 +9,7 @@ end)()
 let annotated_insertions spe =
   let open Te_insertion_detector_pipeline in
   let te_library =
-    Te_insertion_detector.Misc.load_transposable_elements (Species.te_library spe)
+    Species.load_te_library "data/consensus_tousET_tousDroso.txt"
   in
   Dna_sample.annotated_insertions spe te_library
   |> less
