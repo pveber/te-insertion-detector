@@ -1,5 +1,4 @@
 open Bistro
-open Bistro_bioinfo
 open Bistro.Shell_dsl
 
 let img = [ docker_image ~account:"pveber" ~name:"art" ~tag:"20160605" () ]

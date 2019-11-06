@@ -1,5 +1,4 @@
 open Bistro
-open Bistro_bioinfo
 
 type _ tbool =
   | True  : [`True] tbool

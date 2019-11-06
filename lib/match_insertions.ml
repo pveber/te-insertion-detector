@@ -2,7 +2,7 @@ open Core
 open Pipes_unix
 
 let ok_exn = function
-  | Pervasives.Ok x -> x
+  | Stdlib.Ok x -> x
   | Error (`Msg x) -> failwith x
 
 module Lines = Biocaml_base.Lines

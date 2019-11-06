@@ -171,7 +171,7 @@ module Simulation = struct
           | Deletion _ -> true
         )
       in
-      let open Pervasives in
+      let open Stdlib in
       let prec = float tp /. (float tp +. float fp) in
       let recall = float tp /. (float tp +. float fn) in
       recall, prec
