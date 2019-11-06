@@ -7,6 +7,10 @@ type t = [
   | `DmGoth10_dna
   | `DmSJRP23_dna
   | `DmSJRP7_dna
+  | `DsGoth3_dna
+  | `DsGoth6_dna
+  | `DsSJRP27_dna
+  | `DsSJRP9_dna
 ]
 [@@deriving enumerate]
 
