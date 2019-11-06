@@ -90,6 +90,14 @@ let%pworkflow annotated_insertions spe te_library =
   let intron_map = feature_map genes Gzt.Gene.introns in
   let utr3_map = feature_map (Gzt.Gtf.Annotation.utr3' annotation) (fun r -> [ Gzt.Gtf.Record.loc r ]) in
   let utr5_map = feature_map (Gzt.Gtf.Annotation.utr5' annotation) (fun r -> [ Gzt.Gtf.Record.loc r ]) in
+  let upstream_map = feature_map genes Gzt.(fun g ->
+      List.map g.Gene.transcripts ~f:(fun t ->
+          Gene.Transcript.upstream t 5_000)
+    ) in
+  let downstream_map = feature_map genes Gzt.(fun g ->
+      List.map g.Gene.transcripts ~f:(fun t ->
+          Gene.Transcript.upstream t 5_000)
+    ) in
   let gene_map =
     String.Table.to_alist genes
     |> CFStream.Stream.of_list
@@ -99,6 +107,7 @@ let%pworkflow annotated_insertions spe te_library =
     |> Gzt.GAnnot.LMap.of_stream
   in
   let samples = samples_for_species spe in
+  let feature_maps = [ exon_map ; intron_map ; utr3_map ; utr5_map ; upstream_map ; downstream_map ] in
   Out_channel.with_file [%dest] ~f:(fun oc ->
       fprintf oc "chrom\tpos\tTE\tgene_id\t%s\texon\tintron\t5UTR\t3UTR\tupstream\tdownstream\n"
         (String.concat ~sep:"\t" (List.map samples ~f:Sample.to_string)) ;
@@ -121,7 +130,7 @@ let%pworkflow annotated_insertions spe te_library =
                 |> String.concat ~sep:"\t"
               in
               let region_type =
-                List.map [ exon_map ; intron_map ; utr3_map ; utr5_map ] ~f:(fun map ->
+                List.map feature_maps ~f:(fun map ->
                     if Gzt.GAnnot.LSet.intersects map loc then "1" else "0"
                   )
                 |> String.concat ~sep:"\t"
