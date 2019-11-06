@@ -31,9 +31,16 @@ let browse_chIP_datasets () =
       )
   ]
 
+let repo () =
+  let loggers = [ Bistro_utils.Console_logger.create () ] in
+  Te_insertion_detector_pipeline.Repo.make ()
+  |> Bistro_utils.Repo.build_main ~loggers ~np:6 ~mem:(`GB 8) ~outdir:"results"
+
 let wip_main () =
   try
-    eval @@ browse_chIP_datasets ()
+    (* eval @@ browse_chIP_datasets () *)
+    (* annotated_insertions `Dsim *)
+    repo ()
   with Failure msg -> print_endline msg
 
 let wip_command = Command.basic ~summary:"WIP" (Command.Param.return wip_main)
