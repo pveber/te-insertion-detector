@@ -27,4 +27,8 @@ let subset ?species () =
     )
 
 let macs_peaks s =
-  Macs2.(callpeak_broad sam ~qvalue:0.01 ~call_summits:true [ Genomic_sample.mapped_reads s ])
+  Macs2.(callpeak_broad sam ~qvalue:0.01 [ Genomic_sample.mapped_reads s ])
+
+let macs_peaks_bed s =
+  macs_peaks s
+  |> Macs2.broad_peaks
