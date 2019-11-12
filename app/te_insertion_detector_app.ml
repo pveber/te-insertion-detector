@@ -18,10 +18,7 @@ let browse_chIP_datasets () =
   let open Bistro in
   let open Te_insertion_detector_pipeline in
   let samples = EM_ChIP_sample.subset ~species:`Dmel () in
-  let signals = List.map samples ~f:(fun s ->
-      Genomic_sample.signal s
-    )
-  in
+  let signals = List.map samples ~f:Genomic_sample.signal in
   [%workflow
     let igv = new Gzt.Igv.proxy () in
     ignore igv#_new_ ;

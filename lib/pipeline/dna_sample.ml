@@ -30,7 +30,6 @@ let insertions (s : t) te =
   in
   [%workflow List.map [%eval res#detected_inserts] ~f:fst]
 
-
 type annotated_insertion = {
   chrom : string ;
   pos : string ;
