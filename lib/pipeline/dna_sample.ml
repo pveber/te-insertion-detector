@@ -37,43 +37,62 @@ type annotated_insertion = {
   sample : string ;
 }
 
+let group_insertions_by_te spe te_library =
+  let samples = samples_for_species spe in
+  List.map te_library ~f:(fun te ->
+      List.map samples ~f:(fun s ->
+          [%workflow s, [%eval insertions s te]]
+        )
+      |> Workflow.list
+    )
+  |> Workflow.list
+
+let merge_insertions_from_all_samples inserts =
+  List.map inserts ~f:(fun ins_by_sample ->
+      List.concat_map ins_by_sample ~f:(fun (s, ins) ->
+          List.map ins ~f:(fun i -> i, s)
+        )
+      |> List.sort ~compare:(fun (i1, _) (i2, _) -> Gzt.GLoc.compare i1 i2)
+      |> List.group ~break:(fun (i1, _) (i2, _) ->
+          match Gzt.GLoc.dist i1 i2 with
+          | None -> true
+          | Some d -> Int.abs d > 200
+        )
+      |> List.map ~f:(fun grp ->
+          let barycenter =
+            List.map grp ~f:(fun ((l : Gzt.GLoc.t), _) -> (float l.lo +. float l.hi) /. 2.)
+            |> List.fold ~init:0. ~f:( +. )
+            |> (fun s -> Float.to_int (s /. float (List.length grp)))
+          in
+          let chrom = match grp with
+            | (i, _) :: _ -> i.chr
+            | _ -> assert false
+          in
+          chrom, barycenter, List.map grp ~f:snd
+        )
+    )
+
+let%pworkflow insertions_from_all_samples_bed spe te_library =
+  let inserts = [%eval group_insertions_by_te spe te_library ] in
+  let grouped_inserts = merge_insertions_from_all_samples inserts in
+  let open Gzt.Bed.Bed4 in
+  Out_channel.with_file [%dest] ~f:(fun oc ->
+      List.iter2_exn te_library grouped_inserts ~f:(fun te inserts ->
+          List.iter inserts ~f:(fun (chrom, chromStart, samples) ->
+              let name =
+                sprintf "%s|%s" te.id
+                  (List.map samples ~f:Sample.to_string |> String.concat ~sep:":")
+              in
+              { chrom ; chromStart ; chromEnd = chromStart + 1 ; name }
+              |> Record.to_line
+              |> (fun x -> Out_channel.output_string oc x ; Out_channel.output_char oc '\n')
+            )
+        )
+    )
+
 let%pworkflow annotated_insertions spe te_library =
-  let inserts = [%eval
-     let samples = samples_for_species spe in
-     List.map te_library ~f:(fun te ->
-         List.map samples ~f:(fun s ->
-             [%workflow s, [%eval insertions s te]]
-           )
-         |> Workflow.list
-       )
-     |> Workflow.list
-  ]
-  in
-  let grouped_inserts =
-    List.map inserts ~f:(fun ins_by_sample ->
-        List.concat_map ins_by_sample ~f:(fun (s, ins) ->
-            List.map ins ~f:(fun i -> i, s)
-          )
-        |> List.sort ~compare:(fun (i1, _) (i2, _) -> Gzt.GLoc.compare i1 i2)
-        |> List.group ~break:(fun (i1, _) (i2, _) ->
-            match Gzt.GLoc.dist i1 i2 with
-            | None -> true
-            | Some d -> Int.abs d > 200
-          )
-        |> List.map ~f:(fun grp ->
-            let barycenter =
-              List.map grp ~f:(fun ((l : Gzt.GLoc.t), _) -> (float l.lo +. float l.hi) /. 2.)
-              |> List.fold ~init:0. ~f:( +. )
-              |> (fun s -> Float.to_int (s /. float (List.length grp)))
-            in
-            let chrom = match grp with
-              | (i, _) :: _ -> i.chr
-              | _ -> assert false
-            in
-            chrom, barycenter, List.map grp ~f:snd
-          )
-      )
-  in
+  let inserts = [%eval group_insertions_by_te spe te_library ] in
+  let grouped_inserts = merge_insertions_from_all_samples inserts in
   let gtf = Gzt.Gtf.load [%path Species.annotation spe ] in
   let annotation = Gzt.Gtf.Annotation.of_items gtf in
   let genes, _ = Gzt.Gtf.Annotation.genes annotation in
@@ -139,41 +158,3 @@ let%pworkflow annotated_insertions spe te_library =
             )
         ) ;
     )
-
-    (* let exons = String.Table.map genes ~f:Gzt.Gene.exons in
-     * let introns = String.Table.map genes ~f:Gzt.Gene.introns in
-     * let utr3' = Gzt.Gtf.Annotation.utr3' annotation in
-     * let utr5' = Gzt.Gtf.Annotation.utr5' annotation in
-     * let counts = String.Table.mapi genes ~f:(fun ~key:id ~data:gene ->
-     *     let exons = String.Table.find_exn exons id in
-     *     let introns = String.Table.find_exn introns id in
-     *     let upstream_region = Gzt.Gene.upstream gene 5_000 in
-     *     let downstream_region = Gzt.Gene.downstream gene 5_000 in
-     *     List.map2_exn tes detected_inserts ~f:(fun te detected_inserts ->
-     *         let count f = List.count detected_inserts ~f in
-     *         let count_inter loc = count (fun i -> Gzt.GLoc.intersects i loc) in
-     *         let exon_count =
-     *           count (fun i -> List.exists exons ~f:(Gzt.GLoc.intersects i))
-     *         in
-     *         let intron_count =
-     *           count (fun i -> List.exists introns ~f:(Gzt.GLoc.intersects i))
-     *         in
-     *         let utr3'_count =
-     *           Option.value_map (String.Table.find utr3' id) ~default:0 ~f:(fun utr3' ->
-     *               let utr3'_loc = Gzt.Gff.Record.loc utr3' in
-     *               count_inter utr3'_loc
-     *             )
-     *         in
-     *         let utr5'_count =
-     *           Option.value_map (String.Table.find utr5' id) ~default:0 ~f:(fun utr5' ->
-     *               let utr5'_loc = Gzt.Gff.Record.loc utr5' in
-     *               count_inter utr5'_loc
-     *             )
-     *         in
-     *         let upstream_count = count_inter upstream_region in
-     *         let downstream_count = count_inter downstream_region in
-     *         te.Te_library.id, [ exon_count ; intron_count ; utr5'_count ; utr3'_count ; upstream_count ; downstream_count ]
-     *       )
-     *   )
-     * in
-     * () *)
