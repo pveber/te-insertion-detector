@@ -19,11 +19,18 @@ let browse_chIP_datasets () =
   let open Te_insertion_detector_pipeline in
   let samples = EM_ChIP_sample.subset ~species:`Dmel () in
   let signals = List.map samples ~f:Genomic_sample.signal in
+  let called_peaks = List.map samples ~f:EM_ChIP_sample.macs_peaks_bed in
+  let te_library = Species.load_te_library "data/consensus_tousET_tousDroso.txt" in
+  let insertions = Dna_sample.insertions_from_all_samples_bed `Dmel te_library in
   [%workflow
     let igv = new Gzt.Igv.proxy () in
+    let signals = [%eval Workflow.eval_paths signals] in
+    let called_peaks = [%eval Workflow.eval_paths called_peaks] in
     ignore igv#_new_ ;
     ignore @@ igv#genome [%path Species.indexed_genome `Dmel] ;
-    List.iter2_exn samples  [%eval Workflow.eval_paths signals] ~f:(fun s signal ->
+    ignore @@ igv#load ~format:"bed" ~name:"insertions" [%path insertions] ;
+    List.iter2_exn samples (List.zip_exn signals called_peaks) ~f:(fun s (signal, peaks) ->
+        ignore @@ igv#load ~format:"bed" ~name:(Sample.to_string s) peaks ;
         ignore @@ igv#load ~format:"bigwig" ~name:(Sample.to_string s) signal
       )
   ]
@@ -35,9 +42,9 @@ let repo () =
 
 let wip_main () =
   try
-    (* eval @@ browse_chIP_datasets () *)
+    eval @@ browse_chIP_datasets ()
     (* annotated_insertions `Dsim *)
-    repo ()
+    (* repo () *)
   with Failure msg -> print_endline msg
 
 let wip_command = Command.basic ~summary:"WIP" (Command.Param.return wip_main)
