@@ -33,7 +33,7 @@ let mapped_reads_bam x =
   Samtools.indexed_bam_of_sam (mapped_reads x)
 
 let signal x =
-  Deeptools.(bamcoverage bigwig) (mapped_reads_bam x)
+  Deeptools.(bamcoverage ~binsize:10 ~normalizeUsing:`RPKM bigwig) (mapped_reads_bam x)
 
 (* let%pworkflow genome_slices ~fa ~gtf =
  *   let genes =
