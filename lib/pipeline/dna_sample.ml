@@ -28,7 +28,7 @@ let insertions (s : t) te =
       ~fq2:(Sample.r2_path s)
       ~genome:(Species.genome (Sample.species s))
   in
-  [%workflow List.map [%eval res#detected_inserts] ~f:fst]
+  res#detected_inserts
 
 type annotated_insertion = {
   chrom : string ;
@@ -50,7 +50,7 @@ let group_insertions_by_te spe te_library =
 let merge_insertions_from_all_samples inserts =
   List.map inserts ~f:(fun ins_by_sample ->
       List.concat_map ins_by_sample ~f:(fun (s, ins) ->
-          List.map ins ~f:(fun i -> i, s)
+          List.map ins ~f:(fun (loc, reads) -> loc, (s, reads))
         )
       |> List.sort ~compare:(fun (i1, _) (i2, _) -> Gzt.GLoc.compare i1 i2)
       |> List.group ~break:(fun (i1, _) (i2, _) ->
@@ -78,10 +78,13 @@ let%pworkflow insertions_from_all_samples_bed spe te_library =
   let open Gzt.Bed.Bed4 in
   Out_channel.with_file [%dest] ~f:(fun oc ->
       List.iter2_exn te_library grouped_inserts ~f:(fun te inserts ->
-          List.iter inserts ~f:(fun (chrom, chromStart, samples) ->
+          List.iter inserts ~f:(fun (chrom, chromStart, samples_with_reads) ->
               let name =
                 sprintf "%s|%s" te.id
-                  (List.map samples ~f:Sample.to_string |> String.concat ~sep:":")
+                  (List.map samples_with_reads ~f:(fun (s, _) ->
+                       Sample.to_string s
+                     )
+                   |> String.concat ~sep:":")
               in
               { chrom ; chromStart ; chromEnd = chromStart + 1 ; name }
               |> Record.to_line
@@ -127,11 +130,16 @@ let%pworkflow annotated_insertions spe te_library =
   let samples = samples_for_species spe in
   let feature_maps = [ exon_map ; intron_map ; utr3_map ; utr5_map ; upstream_map ; downstream_map ] in
   Out_channel.with_file [%dest] ~f:(fun oc ->
-      fprintf oc "chrom\tpos\tTE\tgene_id\t%s\texon\tintron\t5UTR\t3UTR\tupstream\tdownstream\n"
+      fprintf oc "chrom\tpos\tTE\tgene_id\tnb_reads\t%s\texon\tintron\t5UTR\t3UTR\tupstream\tdownstream\n"
         (String.concat ~sep:"\t" (List.map samples ~f:Sample.to_string)) ;
       List.iter2_exn te_library grouped_inserts ~f:(fun te inserts ->
-          List.iter inserts ~f:(fun (chrom, pos, found) ->
+          List.iter inserts ~f:(fun (chrom, pos, samples_with_reads) ->
               let loc = Gzt.GLoc.{ chr = chrom ; lo = pos ; hi = pos + 1 } in
+              let found = List.map samples_with_reads ~f:fst in
+              let nb_reads =
+                List.map samples_with_reads ~f:(fun (_,reads) -> List.length reads)
+                |> List.reduce_exn ~f:Int.max
+              in
               let genes =
                 Gzt.GAnnot.LMap.intersecting_elems gene_map loc
                 |> CFStream.Stream.map ~f:snd
@@ -153,7 +161,7 @@ let%pworkflow annotated_insertions spe te_library =
                   )
                 |> String.concat ~sep:"\t"
               in
-              Out_channel.fprintf oc "%s\t%d\t%s\t%s\t%s\t%s" chrom pos te.id gene_id sample_cols region_type ;
+              Out_channel.fprintf oc "%s\t%d\t%s\t%s\t%d\t%s\t%s" chrom pos te.id gene_id nb_reads sample_cols region_type ;
               Out_channel.newline oc
             )
         ) ;
