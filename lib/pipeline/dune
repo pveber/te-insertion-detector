@@ -5,3 +5,8 @@
  (flags :standard -unsafe-string -short-paths)
  (preprocess
   (pps ppx_deriving.std ppx_sexp_conv bistro.ppx ppx_let ppx_enumerate)))
+
+(rule
+  (targets scripts.ml)
+  (action (run bash ocamlify_scripts.sh))
+  (deps (file ocamlify_scripts.sh) (glob_files scripts/*)))

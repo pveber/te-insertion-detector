@@ -166,3 +166,10 @@ let%pworkflow annotated_insertions spe te_library =
             )
         ) ;
     )
+
+let insertion_correlation_diagram spe te_library =
+  let open Bistro.Shell_dsl in
+  Bistro_utils.R_script.workflow ~descr:"insertion_correlation_diagram" [%script {|
+    source({{string Scripts.te_insertion_clustering}})
+    insertion_correlation_clust({{dep (annotated_insertions spe te_library)}}, {{dest}})
+|}]
