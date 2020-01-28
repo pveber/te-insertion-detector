@@ -28,6 +28,7 @@ let browse_chIP_datasets () =
     let called_peaks = [%eval Workflow.eval_paths called_peaks] in
     ignore igv#_new_ ;
     ignore @@ igv#genome [%path Species.indexed_genome `Dmel] ;
+    ignore @@ igv#load ~format:"gff" [%path Species.annotation `Dmel] ;
     ignore @@ igv#load ~format:"bed" ~name:"insertions" [%path insertions] ;
     List.iter2_exn samples (List.zip_exn signals called_peaks) ~f:(fun s (signal, peaks) ->
         ignore @@ igv#load ~format:"bed" ~name:(Sample.to_string s) peaks ;
@@ -42,9 +43,9 @@ let repo () =
 
 let wip_main () =
   try
-    eval @@ browse_chIP_datasets ()
+    (* eval @@ browse_chIP_datasets () *)
     (* annotated_insertions `Dsim *)
-    (* repo () *)
+    repo ()
   with Failure msg -> print_endline msg
 
 let wip_command = Command.basic ~summary:"WIP" (Command.Param.return wip_main)
