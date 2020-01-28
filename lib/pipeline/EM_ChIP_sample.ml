@@ -23,7 +23,7 @@ type t = [
 
 let subset ?species () =
   List.filter all ~f:(fun s ->
-      Option.value_map species ~default:true ~f:(fun spe -> Sample.species s = spe)
+      Option.value_map species ~default:true ~f:(fun spe -> Poly.(Sample.species s = spe))
     )
 
 let macs_peaks s =

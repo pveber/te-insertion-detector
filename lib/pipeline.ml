@@ -148,7 +148,7 @@ module Simulation = struct
       |> List.dedup_and_sort ~compare:Float.compare
     in
     let eval theta =
-      let detected_insertions = List.filter detected_insertions ~f:(fun (_, x) -> x > theta) in
+      let detected_insertions = List.filter detected_insertions ~f:Float.(fun (_, x) -> x > theta) in
       let matching =
         M.align_list
           detected_insertions

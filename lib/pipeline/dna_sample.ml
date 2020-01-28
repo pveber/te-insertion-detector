@@ -15,7 +15,7 @@ type t = [
 [@@deriving enumerate]
 
 let samples_for_species spe =
-  List.filter all ~f:(fun s -> Sample.species s = spe)
+  List.filter all ~f:(fun s -> Poly.(Sample.species s = spe))
 
 let annotation s =
   Species.annotation (Sample.species s)

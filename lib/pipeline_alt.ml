@@ -42,7 +42,7 @@ module Detection = struct
                     | None, _ | _, None -> acc
                     | Some g_qname, Some et_qname ->
                       let g_id, et_id = Filter_fastq_with_sam.(normalize_id g_qname, normalize_id et_qname) in
-                      if g_id = et_id then (
+                      if String.(g_id = et_id) then (
                         match read_of_al genome_header g_al, read_of_al et_header et_al with
                         | Some genome_read, Some et_read ->
                           Stream.junk genome_als ;
@@ -50,7 +50,7 @@ module Detection = struct
                           loop ({ genome_read ; et_read } :: acc)
                         | _ -> loop acc
                       )
-                      else if g_id < et_id then (Stream.junk genome_als ; loop acc)
+                      else if String.(g_id < et_id) then (Stream.junk genome_als ; loop acc)
                       else (Stream.junk et_als ; loop acc)
                   )
               in
@@ -126,7 +126,7 @@ module Detection = struct
       |> List.dedup_and_sort ~compare:Float.compare
     in
     let eval theta =
-      let detected_insertions = List.filter detected_insertions ~f:(fun (_, x) -> x > theta) in
+      let detected_insertions = List.filter detected_insertions ~f:Float.(fun (_, x) -> x > theta) in
       let matching =
         M.align_list
           detected_insertions

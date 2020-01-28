@@ -15,9 +15,9 @@ module V = struct
     | Left of Macs2.Xls.record
     | Right of Macs2.Xls.record
 
-  let equal = ( = )
+  let equal = Poly.( = )
   let hash = Hashtbl.hash
-  let compare = compare
+  let compare = Poly.compare
 
   let to_peak = function
     | Left p -> p
@@ -140,7 +140,9 @@ let graph_counts g =
 
 let compare_peaks p q =
   let open Macs2.Xls in
-  compare (p.chr, p.start, p.end_) (q.chr, q.start, q.end_)
+  Tuple3.compare
+    ~cmp1:String.compare ~cmp2:Int.compare ~cmp3:Int.compare
+    (p.chr, p.start, p.end_) (q.chr, q.start, q.end_)
 
 let compare_edges (p1, q1) (p2, q2) =
   match compare_peaks (V.to_peak p1) (V.to_peak p2) with
