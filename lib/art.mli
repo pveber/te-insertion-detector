@@ -43,17 +43,17 @@ val art_illumina :
   sam_output:'c tbool ->
   'rm read_model ->
   [< `Coverage_fold of float | `Read_count of int ] ->
-  fasta pworkflow ->
+  fasta file ->
   < aln : 'a;
     errfree_sam : 'b;
     read_model : 'rm;
-    sam : 'c > art_illumina_output dworkflow
+    sam : 'c > art_illumina_output directory
 
 val se_fastq :
-  < read_model : [`single_end] ; .. > art_illumina_output dworkflow ->
-  sanger_fastq pworkflow
+  < read_model : [`single_end] ; .. > art_illumina_output directory ->
+  fastq file
 
 val pe_fastq :
-  < read_model : [`paired_end] ; .. > art_illumina_output dworkflow ->
+  < read_model : [`paired_end] ; .. > art_illumina_output directory ->
   [`One | `Two] ->
-  sanger_fastq pworkflow
+  fastq file

@@ -1,6 +1,6 @@
 open Core
 open Bistro
-open Bistro_bioinfo
+open Biotope
 open Bistro_utils
 open Misc
 
@@ -48,7 +48,7 @@ module Detection = struct
       else
         Workflow.input x
 
-  let fastq_gz mode fn : sanger_fastq gz pworkflow =
+  let fastq_gz mode fn : fastq gz file =
     let fq = Workflow.input fn in
     match mode with
     | `preview i ->
@@ -85,7 +85,7 @@ module Simulation = struct
     in
     (Art.pe_fastq ao `One, Art.pe_fastq ao `Two)
 
-  let insertions_in_fasta ~te ~genome : [`genome_with_insertions] dworkflow =
+  let insertions_in_fasta ~te ~genome : [`genome_with_insertions] directory =
     Workflow.shell ~descr:"insertions_in_fasta" ~version:3 [
       cmd "te-insertion-detector" [
         string "insertions-in-fasta" ;
@@ -95,10 +95,10 @@ module Simulation = struct
       ]
     ]
 
-  let genome_of_insertions_in_fasta (x : [`genome_with_insertions] dworkflow) : fasta pworkflow =
+  let genome_of_insertions_in_fasta (x : [`genome_with_insertions] directory) : fasta file =
     Workflow.select x ["genome.fa"]
 
-  let insertions_of_insertions_in_fasta (x : [`genome_with_insertions] dworkflow) : bed3 pworkflow =
+  let insertions_of_insertions_in_fasta (x : [`genome_with_insertions] directory) : bed3 file =
     Workflow.select x ["inserts.bed"]
 
   let simulation te original_genome =
@@ -117,58 +117,57 @@ module Simulation = struct
         te_positions ~coverage original_genome
     end
 
-  module Pred = struct
-    type t = Assignment_bed.Position.t * float
-    let position = fst
-  end
-
-  module Position = struct
-    include Assignment_bed.Position
-    let position x = x
-  end
-
   let%pworkflow evaluation ~detected_insertions ~simulated_genome =
-    let module M = Assignment_dynamic.Dynamic.Make(Pred)(Position) in
+    let open Biotk in
     let detected_insertions =
       let file = [%path detected_insertions] in
-      Assignment_bed.Parser.(parse_bed ~file ~line_parser:parse_position_score)
+      Macs2.Xls.read file
+      |> Rresult.R.get_ok
+      |> List.filter_map ~f:(function
+          | `Record r -> Some r
+          | _ -> None
+        )
     in
     let reference =
       [%path insertions_of_insertions_in_fasta simulated_genome]
       |> In_channel.read_lines
       |> List.map ~f:(String.split ~on:'\t')
       |> List.map ~f:(function
-          | [ x ; y ; _ ] -> x, Int.of_string y
+          | [ x ; y ; _ ] ->
+            let p = Int.of_string y in
+            GLoc.{ chr = x ; lo = p ; hi = p + 1 }
           | _ -> assert false
         )
-      |> List.map ~f:Assignment_bed.Position.of_tuple
+      |> GAnnot.LAssoc.of_list ~f:Fn.id
     in
     let scores =
-      List.map detected_insertions ~f:snd
+      detected_insertions
+      |> List.map  ~f:(fun p -> p.Macs2.Xls.log10qvalue)
       |> List.dedup_and_sort ~compare:Float.compare
     in
     let eval theta =
-      let detected_insertions = List.filter detected_insertions ~f:Float.(fun (_, x) -> x > theta) in
+      let detected_insertions = List.filter detected_insertions ~f:Float.(fun p -> p.Macs2.Xls.log10qvalue > theta) in
       let matching =
-        M.align_list
-          detected_insertions
-          reference
+        GAnnot.LAssoc.matching
+          ~mode:`Point
           ~max_dist:10_000
+          (GAnnot.LAssoc.of_list ~f:Macs2.Xls.loc_of_record detected_insertions)
+          reference
       in
       let tp = List.count matching ~f:(function
-          | M.Match ((_, _), _) -> true
-          | Insertion (_, _) -> false
-          | Deletion _ -> false
+          | `Match _ -> true
+          | `Left _ -> false
+          | `Right _ -> false
         )
       and fp = List.count matching ~f:(function
-          | M.Match ((_, _), _) -> false
-          | Insertion (_, _) -> true
-          | Deletion _ -> false
+          | `Match _ -> true
+          | `Left _ -> true
+          | `Right _ -> false
         )
       and fn = List.count matching ~f:(function
-          | M.Match ((_, _), _) -> false
-          | Insertion (_, _) -> false
-          | Deletion _ -> true
+          | `Match _ -> true
+          | `Left _ -> false
+          | `Right _ -> true
         )
       in
       let open Stdlib in

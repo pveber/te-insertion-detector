@@ -1,6 +1,6 @@
 open Core_kernel
 open Bistro
-open Bistro_bioinfo
+open Biotope
 
 module Script = struct
   type statement = Template_dsl.template

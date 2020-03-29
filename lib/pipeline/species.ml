@@ -1,10 +1,10 @@
 open Core_kernel
 open Bistro
-open Bistro_bioinfo
+open Biotope
 
 type t = [`Dmel | `Dsim]
 
-let annotation s : gff3 pworkflow =
+let annotation s : gff3 file =
   Bistro_unix.wget (
     match s with
     | `Dmel -> "ftp://ftp.flybase.net/genomes/Drosophila_melanogaster/dmel_r6.16_FB2017_03/gtf/dmel-all-r6.16.gtf.gz"
@@ -26,7 +26,7 @@ let line_head =
     | _ -> assert false
 
 let load_te_library fa =
-  match Gzt.Fasta.from_file fa with
+  match Biotk.Fasta.from_file fa with
   | Ok (_, items) ->
     List.filter_map items ~f:(fun it ->
         if
@@ -45,7 +45,7 @@ let te_library = function
   | `Dsim ->
     assert false
 
-let genome s : fasta pworkflow =
+let genome s : fasta file =
   Bistro_unix.wget (
     match s with
     | `Dmel -> "ftp://ftp.flybase.net/genomes/Drosophila_melanogaster/dmel_r6.16_FB2017_03/fasta/dmel-all-chromosome-r6.16.fasta.gz"

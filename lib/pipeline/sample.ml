@@ -347,6 +347,6 @@ let r2_path = function
   | `DsSJRP27_dna -> "data/FRM/FRM_genomes/Pool1-PE/LibPE-DsSJRP27_TGACCA_L001_R2.fastq.gz"
   | `DsSJRP9_dna -> "data/FRM/FRM_genomes/Pool2-PE/LibPE-DsSJRP9_GATCAG_L002_R2.fastq.gz"
 
-let fastq_gz s : sanger_fastq gz pworkflow SE_or_PE.t =
+let fastq_gz s : sanger_fastq gz file SE_or_PE.t =
   SE_or_PE.Paired_end (r1_path s, r2_path s)
   |> SE_or_PE.map ~f:Workflow.input

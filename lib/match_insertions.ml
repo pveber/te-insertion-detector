@@ -1,5 +1,5 @@
 open Core
-open Pipes_unix
+open Biotk_pipes_unix
 
 let ok_exn = function
   | Stdlib.Ok x -> x

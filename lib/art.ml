@@ -65,12 +65,12 @@ let art_illumina
     ~(aln_output : 'a tbool)
     ~(errfree_sam_output : 'b tbool)
     ~(sam_output : 'c tbool)
-    (read_model : 'rm read_model) depth (fa : fasta pworkflow)
+    (read_model : 'rm read_model) depth (fa : fasta file)
 
   : < aln : 'a ;
       errfree_sam : 'b ;
       sam : 'c ;
-      read_model : 'rm > art_illumina_output dworkflow
+      read_model : 'rm > art_illumina_output directory
   =
   Workflow.shell ~descr:"art_illumina" [
     mkdir_p dest ;

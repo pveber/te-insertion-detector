@@ -23,9 +23,9 @@ let browse_chIP_datasets () =
   let te_library = Species.load_te_library "data/consensus_tousET_tousDroso.txt" in
   let insertions = Dna_sample.insertions_from_all_samples_bed `Dmel te_library in
   [%workflow
-    let igv = new Gzt.Igv.proxy () in
-    let signals = [%eval Workflow.eval_paths signals] in
-    let called_peaks = [%eval Workflow.eval_paths called_peaks] in
+    let igv = new Biotk.Igv.proxy () in
+    let signals = [%eval Workflow.path_list signals] in
+    let called_peaks = [%eval Workflow.path_list called_peaks] in
     ignore igv#_new_ ;
     ignore @@ igv#genome [%path Species.indexed_genome `Dmel] ;
     ignore @@ igv#load ~format:"gff" [%path Species.annotation `Dmel] ;

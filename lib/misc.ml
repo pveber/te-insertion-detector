@@ -1,11 +1,11 @@
 open Core
 open Bistro
-open Bistro_bioinfo
+open Biotope
 open Bistro.Shell_dsl
 open CFStream
 open Biocaml_ez
 
-let fastq_gz_head (fq_gz : #fastq gz pworkflow as 'a) i : 'a =
+let fastq_gz_head (fq_gz : #fastq gz file as 'a) i : 'a =
   Workflow.shell ~descr:"fastq_gz_head" [
     pipe [
       cmd "zcat" [ dep fq_gz ] ;
@@ -14,7 +14,7 @@ let fastq_gz_head (fq_gz : #fastq gz pworkflow as 'a) i : 'a =
     ]
   ]
 
-let gzdep (gz : _ gz pworkflow) =
+let gzdep (gz : _ gz file) =
   seq ~sep:"" [
     string "<(gunzip -c " ;
     dep gz ;
@@ -28,7 +28,7 @@ let gzdest =
     string ")" ;
   ]
 
-let filter_fastq_with_sam_gen fq_dep sam_dest ?invert ?min_mapq (sam : sam pworkflow) fq =
+let filter_fastq_with_sam_gen fq_dep sam_dest ?invert ?min_mapq (sam : sam file) fq =
   Workflow.shell ~descr:"filter_fastq_with_sam" ~version:2 [
     cmd "bash" [
       file_dump (seq ~sep:" " [
@@ -44,13 +44,13 @@ let filter_fastq_with_sam_gen fq_dep sam_dest ?invert ?min_mapq (sam : sam pwork
     ]
   ]
 
-let filter_fastq_with_sam ?invert ?min_mapq sam (fq : (sanger_fastq as 'a) pworkflow) : 'a pworkflow =
+let filter_fastq_with_sam ?invert ?min_mapq sam (fq : (#fastq as 'a) file) : 'a file =
   filter_fastq_with_sam_gen dep dest ?invert ?min_mapq sam fq
 
-let filter_fastq_with_sam_gz ?invert ?min_mapq sam (fq : (sanger_fastq as 'a) gz pworkflow) : 'a gz pworkflow =
+let filter_fastq_with_sam_gz ?invert ?min_mapq sam (fq : (#fastq as 'a) gz file) : 'a gz file =
   filter_fastq_with_sam_gen gzdep gzdest ?invert ?min_mapq sam fq
 
-let match_insertions (peaks1 : Macs2.peaks_xls pworkflow) (peaks2 : Macs2.peaks_xls pworkflow) =
+let match_insertions (peaks1 : Macs2.peaks_xls file) (peaks2 : Macs2.peaks_xls file) =
   Workflow.shell ~descr:"match_insertions" ~version:8 [
     cmd "te-insertion-detector" [
       string "match-insertions" ;
@@ -82,7 +82,7 @@ let samtools_env = [ docker_image ~account:"pveber" ~name:"samtools" ~tag:"1.3.1
    logs everything that passes on stdout, which takes LOTS of space in
    that particular case. Either use named pipes or intermediate files...
 *)
-let bowtie2 ~min_mapq (index : Bowtie2.index pworkflow) fqs =
+let bowtie2 ~min_mapq (index : [`bowtie2_index] directory) fqs =
   let args = match fqs with
     | `single_end fqs ->
       opt "-U" (list gzdep ~sep:",") fqs

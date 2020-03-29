@@ -1,5 +1,5 @@
 open Core
-open Bistro_bioinfo
+open Biotope
 open Bistro_utils
 
 module Detection = struct
@@ -18,7 +18,7 @@ module Detection = struct
   [@@deriving sexp]
 
   let loc_of_read { chr ; pos ; seq ; _ } =
-    Gzt.GLoc.{ chr ; lo = pos ; hi = pos + String.length seq }
+    Biotk.GLoc.{ chr ; lo = pos ; hi = pos + String.length seq }
 
   let%workflow detect_frontier_pairs ~genome_reads1 ~genome_reads2 ~et_reads1 ~et_reads2 =
     let open Biocaml_ez in
@@ -68,17 +68,17 @@ module Detection = struct
             Some (loc_of_read genome_read, genome_read)
           else None
         )
-      |> List.sort ~compare:(fun (x, _) (y, _) -> Gzt.GLoc.compare x y)
+      |> List.sort ~compare:(fun (x, _) (y, _) -> Biotk.GLoc.compare x y)
     in
     let groups =
       List.group sorted_pairs ~break:(fun (x, _) (y, _) ->
-          Option.value_map (Gzt.GLoc.dist x y) ~default:true ~f:(( < ) 100)
+          Option.value_map (Biotk.GLoc.dist x y) ~default:true ~f:(( < ) 100)
         )
     in
     List.map groups ~f:(fun xs ->
         let locs, reads = List.unzip xs in
         let loc =
-          List.reduce_exn locs ~f:Gzt.(fun l1 l2 ->
+          List.reduce_exn locs ~f:Biotk.(fun l1 l2 ->
               let r = Range.convex_hull (GLoc.range l1) (GLoc.range l2) in
               { chr = l1.chr ; lo = r.lo ; hi = r.hi }
             )
@@ -88,27 +88,16 @@ module Detection = struct
 
   let%pworkflow dump_frontier_pair_peak_detection groups =
     Out_channel.with_file [%dest] ~f:(fun oc ->
-        List.iter [%eval groups] ~f:(fun ((loc : Gzt.GLoc.t), reads) ->
+        List.iter [%eval groups] ~f:(fun ((loc : Biotk.GLoc.t), reads) ->
             fprintf oc "%s\t%d\t%d\t%d\n" loc.chr loc.lo loc.hi (List.length reads)
           )
       )
 
-    module Pred = struct
-    type t = Assignment_bed.Position.t * float
-    let position = fst
-  end
-
-  module Position = struct
-    include Assignment_bed.Position
-    let position x = x
-  end
-
   let%pworkflow evaluation ~detected_insertions ~simulated_genome =
-    let module M = Assignment_dynamic.Dynamic.Make(Pred)(Position) in
+    let open Biotk in
     let detected_insertions =
       List.map [%eval detected_insertions] ~f:(fun (loc, reads) ->
-          Position.{ chrom = loc.chr ; position = Gzt.GLoc.(loc.lo + loc.hi) / 2 },
-          Float.of_int (List.length reads)
+          loc, Float.of_int (List.length reads)
         )
     in
     let reference =
@@ -116,37 +105,41 @@ module Detection = struct
       |> In_channel.read_lines
       |> List.map ~f:(String.split ~on:'\t')
       |> List.map ~f:(function
-          | [ x ; y ; _ ] -> x, Int.of_string y
+          | [ x ; y ; _ ] ->
+            let p = Int.of_string y in
+            GLoc.{ chr = x ; lo = p ; hi = p + 1 }
           | _ -> assert false
         )
-      |> List.map ~f:Assignment_bed.Position.of_tuple
+      |> GAnnot.LAssoc.of_list ~f:Fn.id
     in
     let scores =
-      List.map detected_insertions ~f:snd
+      detected_insertions
+      |> List.map  ~f:snd
       |> List.dedup_and_sort ~compare:Float.compare
     in
     let eval theta =
-      let detected_insertions = List.filter detected_insertions ~f:Float.(fun (_, x) -> x > theta) in
+      let detected_insertions = List.filter detected_insertions ~f:Float.(fun p -> snd p > theta) in
       let matching =
-        M.align_list
-          detected_insertions
-          reference
+        GAnnot.LAssoc.matching
+          ~mode:`Point
           ~max_dist:10_000
+          (GAnnot.LAssoc.of_list ~f:fst detected_insertions)
+          reference
       in
       let tp = List.count matching ~f:(function
-          | M.Match ((_, _), _) -> true
-          | Insertion (_, _) -> false
-          | Deletion _ -> false
+          | `Match _ -> true
+          | `Left _ -> false
+          | `Right _ -> false
         )
       and fp = List.count matching ~f:(function
-          | M.Match ((_, _), _) -> false
-          | Insertion (_, _) -> true
-          | Deletion _ -> false
+          | `Match _ -> true
+          | `Left _ -> true
+          | `Right _ -> false
         )
       and fn = List.count matching ~f:(function
-          | M.Match ((_, _), _) -> false
-          | Insertion (_, _) -> false
-          | Deletion _ -> true
+          | `Match _ -> true
+          | `Left _ -> false
+          | `Right _ -> true
         )
       in
       let open Stdlib in
@@ -174,7 +167,7 @@ module Detection = struct
       )
 
   let%pworkflow mapq_hypothesis frontier_pairs insertions =
-    let insertions = Gzt.Bed.Bed3.load_as_lmap [%path insertions] in
+    let insertions = Biotk.Bed.Bed3.load_as_lmap [%path insertions] in
     let pairs = [%eval frontier_pairs] in
     let mapq =
       List.map pairs ~f:(fun { genome_read ; _ } ->
@@ -185,7 +178,7 @@ module Detection = struct
     in
     let close_to_insertion =
       List.map pairs ~f:(fun { genome_read ; _ } ->
-          match Gzt.GAnnot.LMap.closest insertions (loc_of_read genome_read) with
+          match Biotk.GAnnot.LMap.closest insertions (loc_of_read genome_read) with
           | None -> false
           | Some (_, _, d) -> Int.abs d < 1_000
         )
@@ -212,36 +205,36 @@ module Detection = struct
       [%eval Bistro.Workflow.list detected_inserts]
       |> List.map ~f:(List.map ~f:fst)
     in
-    let gtf = Gzt.Gtf.load [%path gtf] in
-    let annotation = Gzt.Gtf.Annotation.of_items gtf in
-    let genes, _ = Gzt.Gtf.Annotation.genes annotation in
-    let exons = String.Table.map genes ~f:Gzt.Gene.exons in
-    let introns = String.Table.map genes ~f:Gzt.Gene.introns in
-    let utr3' = Gzt.Gtf.Annotation.utr3' annotation in
-    let utr5' = Gzt.Gtf.Annotation.utr5' annotation in
+    let gtf = Biotk.Gtf.load [%path gtf] in
+    let annotation = Biotk.Gtf.Annotation.of_items gtf in
+    let genes, _ = Biotk.Gtf.Annotation.genes annotation in
+    let exons = String.Table.map genes ~f:Biotk.Gene.exons in
+    let introns = String.Table.map genes ~f:Biotk.Gene.introns in
+    let utr3' = Biotk.Gtf.Annotation.utr3' annotation in
+    let utr5' = Biotk.Gtf.Annotation.utr5' annotation in
     let counts = String.Table.mapi genes ~f:(fun ~key:id ~data:gene ->
         let exons = String.Table.find_exn exons id in
         let introns = String.Table.find_exn introns id in
-        let upstream_region = Gzt.Gene.upstream gene 5_000 in
-        let downstream_region = Gzt.Gene.downstream gene 5_000 in
+        let upstream_region = Biotk.Gene.upstream gene 5_000 in
+        let downstream_region = Biotk.Gene.downstream gene 5_000 in
         List.map2_exn tes detected_inserts ~f:(fun te detected_inserts ->
             let count f = List.count detected_inserts ~f in
-            let count_inter loc = count (fun i -> Gzt.GLoc.intersects i loc) in
+            let count_inter loc = count (fun i -> Biotk.GLoc.intersects i loc) in
             let exon_count =
-              count (fun i -> List.exists exons ~f:(Gzt.GLoc.intersects i))
+              count (fun i -> List.exists exons ~f:(Biotk.GLoc.intersects i))
             in
             let intron_count =
-              count (fun i -> List.exists introns ~f:(Gzt.GLoc.intersects i))
+              count (fun i -> List.exists introns ~f:(Biotk.GLoc.intersects i))
             in
             let utr3'_count =
               Option.value_map (String.Table.find utr3' id) ~default:0 ~f:(fun utr3' ->
-                  let utr3'_loc = Gzt.Gff.Record.loc utr3' in
+                  let utr3'_loc = Biotk.Gff.Record.loc utr3' in
                   count_inter utr3'_loc
                 )
             in
             let utr5'_count =
               Option.value_map (String.Table.find utr5' id) ~default:0 ~f:(fun utr5' ->
-                  let utr5'_loc = Gzt.Gff.Record.loc utr5' in
+                  let utr5'_loc = Biotk.Gff.Record.loc utr5' in
                   count_inter utr5'_loc
                 )
             in
@@ -271,7 +264,7 @@ module Detection = struct
       Bowtie2.bowtie2
         ~no_unal:true ~no_discordant:true ~no_mixed:true
         genome_index
-        (SE_or_PE.Paired_end ([fq1], [fq2])) in
+        (Fastq_sample.compressed_pe fq1 fq2) in
     let fq1, fq2 =
       let filter x =
         Misc.filter_fastq_with_sam_gz ~min_mapq:1 ~invert:true genome_mapped_pairs x
@@ -280,7 +273,7 @@ module Detection = struct
     in
     let te_index = Bowtie2.bowtie2_build (Misc.fasta_of_te te) in
     let mapped_reads index fq =
-      Bowtie2.bowtie2 ~mode:`local ~no_unal:true index (SE_or_PE.Single_end [fq])
+      Bowtie2.bowtie2 ~mode:`local ~no_unal:true index (Fastq_sample.compressed_se fq)
       |> Samtools.bam_of_sam
       |> Picardtools.sort_bam_by_name
     in
@@ -349,7 +342,7 @@ let simulation_main ~genome ~np ~mem ~outdir ~verbose:_ () =
   let genome_index = Bowtie2.bowtie2_build original_genome in
   let te_index = Bowtie2.bowtie2_build te in
   let genome_mapped_pairs =
-    Bowtie2.bowtie2 ~no_unal:true ~no_discordant:true ~no_mixed:true genome_index (SE_or_PE.Paired_end ([fq1], [fq2])) in
+    Bowtie2.bowtie2 ~no_unal:true ~no_discordant:true ~no_mixed:true genome_index (Fastq_sample.plain_pe fq1 fq2) in
   let filtered_fq1, filtered_fq2 =
     let filter x =
       Misc.filter_fastq_with_sam ~min_mapq:1 ~invert:true genome_mapped_pairs x
@@ -357,7 +350,7 @@ let simulation_main ~genome ~np ~mem ~outdir ~verbose:_ () =
     filter fq1, filter fq2
   in
   let mapped_reads index fq =
-    Bowtie2.bowtie2 ~mode:`local ~no_unal:true index (SE_or_PE.Single_end [fq])
+    Bowtie2.bowtie2 ~mode:`local ~no_unal:true index (Fastq_sample.plain_se fq)
     |> Samtools.bam_of_sam
     |> Picardtools.sort_bam_by_name
   in
@@ -370,7 +363,7 @@ let simulation_main ~genome ~np ~mem ~outdir ~verbose:_ () =
       item ["frontier_reads"] (Detection.dump_frontier_pairs frontier_pairs) ;
       item ["mapq_hyp.pdf"] (Detection.mapq_hypothesis frontier_pairs insertion_bed) ;
       item ["insertions.bed"] insertion_bed ;
-      item ["mapped_reads"] (Samtools.indexed_bam_of_sam (Bowtie2.(bowtie2 (bowtie2_build simulated_genome_fa) (SE_or_PE.Paired_end ([fq1], [fq2]))))) ;
+      item ["mapped_reads"] (Samtools.indexed_bam_of_sam (Bowtie2.(bowtie2 (bowtie2_build simulated_genome_fa) (Fastq_sample.plain_pe fq1 fq2)))) ;
       item ["mapped_on_original.sam"] genome_mapped_pairs ;
       item ["original.fa"] original_genome ;
       item ["simulated_genome.fa"] simulated_genome_fa ;

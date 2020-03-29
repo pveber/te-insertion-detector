@@ -2,7 +2,7 @@
  (name te_insertion_detector_pipeline)
  (public_name te-insertion-detector.pipeline)
  (libraries bistro.bioinfo core re.pcre te_insertion_detector)
- (flags :standard -unsafe-string -short-paths)
+ (flags :standard -short-paths)
  (preprocess
   (pps ppx_deriving.std ppx_sexp_conv bistro.ppx ppx_let ppx_enumerate)))
 

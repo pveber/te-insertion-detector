@@ -13,7 +13,7 @@ open Biocaml_ez
 
 (* === CUSTOM WRAPPERS === *)
 
-let fastq_gz_head (fq_gz : #fastq gz pworkflow as 'a) i : 'a =
+let fastq_gz_head (fq_gz : #fastq gz file as 'a) i : 'a =
   Workflow.shell ~descr:"fastq_gz_head" [
     pipe [
       cmd "zcat" [ dep fq_gz ] ;
@@ -22,7 +22,7 @@ let fastq_gz_head (fq_gz : #fastq gz pworkflow as 'a) i : 'a =
     ]
   ]
 
-let gzdep (gz : _ gz pworkflow) =
+let gzdep (gz : _ gz file) =
   seq ~sep:"" [
     string "<(gunzip -c " ;
     dep gz ;
@@ -36,7 +36,7 @@ let gzdest =
     string ")" ;
   ]
 
-let filter_fastq_with_sam (sam : sam pworkflow) (fq : (#fastq as 'a) gz pworkflow) : 'a gz pworkflow =
+let filter_fastq_with_sam (sam : sam file) (fq : (#fastq as 'a) gz file) : 'a gz file =
   Workflow.shell ~descr:"filter_fastq_with_sam" [
     cmd "bash" [
       file_dump (seq ~sep:" " [
@@ -50,7 +50,7 @@ let filter_fastq_with_sam (sam : sam pworkflow) (fq : (#fastq as 'a) gz pworkflo
     ]
   ]
 
-let match_insertions (peaks1 : Macs2.peaks_xls pworkflow) (peaks2 : Macs2.peaks_xls pworkflow) =
+let match_insertions (peaks1 : Macs2.peaks_xls file) (peaks2 : Macs2.peaks_xls file) =
   Workflow.shell ~descr:"match_insertions" ~version:8 [
     cmd "te-insertion-detector" [
       string "match-insertions" ;
@@ -82,7 +82,7 @@ let samtools_env = [ docker_image ~account:"pveber" ~name:"samtools" ~tag:"1.3.1
    logs everything that passes on stdout, which takes LOTS of space in
    that particular case. Either use named pipes or intermediate files...
 *)
-let bowtie2 (index : Bowtie2.index pworkflow) fqs =
+let bowtie2 (index : [`bowtie2_index] directory) fqs =
   let args = match fqs with
     | `single_end fqs ->
       opt "-U" (list gzdep ~sep:",") fqs
@@ -142,7 +142,7 @@ module Pipeline = struct
   let mel_genome_index =
     Bowtie2.bowtie2_build mel_genome
 
-  let mel_gff : gff pworkflow =
+  let mel_gff : gff file =
     Bistro_unix.wget "ftp://ftp.flybase.net/genomes/Drosophila_melanogaster/dmel_r6.11_FB2016_03/gff/dmel-all-r6.11.gff.gz"
     |> Bistro_unix.gunzip
 
@@ -221,7 +221,7 @@ fi
     in
     (Art.pe_fastq ao `One, Art.pe_fastq ao `Two)
 
-  let insertions_in_fasta ~te ~genome : [`genome_with_insertions] dworkflow =
+  let insertions_in_fasta ~te ~genome : [`genome_with_insertions] directory =
     Workflow.shell ~descr:"insertions_in_fasta" [
       cmd "te-insertion-detector" [
         string "insertions-in-fasta" ;
@@ -231,7 +231,7 @@ fi
       ]
     ]
 
-  let genome_of_insertions_in_fasta (x : [`genome_with_insertions] dworkflow) : fasta pworkflow =
+  let genome_of_insertions_in_fasta (x : [`genome_with_insertions] directory) : fasta file =
     Workflow.select x ["genome.fa"]
 
   let simulation te =
@@ -252,7 +252,7 @@ fi
       (sample_path_prefix x)
       (match side with `Left -> 1 | `Right -> 2)
 
-  let fastq_gz mode side x : sanger_fastq gz pworkflow =
+  let fastq_gz mode side x : sanger_fastq gz file =
     let fq = Workflow.input (sample_path side x) in
     match mode with
     | `preview i ->
@@ -280,7 +280,7 @@ fi
     in
     let header = "left_only\tleft_with_match\tright_only\tright_with_match" in
     let lines =
-      List.map2_exn elements [%eval Workflow.eval_paths stats] ~f:(fun te p ->
+      List.map2_exn elements [%eval Workflow.path_list stats] ~f:(fun te p ->
           let counts =
             In_channel.read_all p
             |> Sexp.of_string
